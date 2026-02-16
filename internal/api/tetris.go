@@ -109,6 +109,10 @@ func (s *Server) handleTetrisRoom(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "tetris room service unavailable")
 		return
 	}
+	if r.Method == http.MethodOptions {
+		writeNoContent(w)
+		return
+	}
 	trimmed := strings.TrimPrefix(r.URL.Path, "/api/tetris/room/")
 	parts := strings.Split(strings.Trim(trimmed, "/"), "/")
 	if len(parts) == 0 || parts[0] == "" {
