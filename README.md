@@ -123,6 +123,16 @@ curl -s http://127.0.0.1:8080/api/clawdcity/control/apps/counter-game/health | j
 - `GET /api/tetris/room/{room_id}/stream` (SSE)
 - `POST /api/tetris/room/{room_id}/control` (`player_id`, `to_mode=human|agent`, `agent_id`)
 - `POST /api/tetris/room/{room_id}/input` (`player_id`, `source=human|agent`, `action`, `payload`, `tick`)
+- `GET /api/tetris/room/{room_id}/state` (latest per-player state snapshots for agent observation)
+
+Agent integration notes:
+
+- OpenClaw bootstrap input can be minimal: `{app_id, player_id}`.
+- OpenClaw pulls and caches rules from app-side spec (for tetris: `/apps/tetris-web/spec.json`).
+- OpenClaw watches control mode via `/api/tetris/player/{player_id}` until mode becomes `agent`.
+- OpenClaw resolves room via `/api/tetris/player/{player_id}` (`player.room_id`).
+- OpenClaw reads observation from `/api/tetris/room/{id}/state` and submits actions to `/api/tetris/room/{id}/input` (`source=agent`).
+- Generic protocol reference for future apps: `docs/AGENT_ADAPTER.md`.
 
 ## Multi-machine test plan
 

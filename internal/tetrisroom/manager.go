@@ -54,6 +54,17 @@ type Room struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type PlayerState struct {
+	PlayerID  string    `json:"player_id"`
+	Source    string    `json:"source"`
+	Board     []string  `json:"board,omitempty"`
+	Score     int       `json:"score,omitempty"`
+	Lines     int       `json:"lines,omitempty"`
+	Level     int       `json:"level,omitempty"`
+	GameOver  bool      `json:"game_over,omitempty"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type InputEvent struct {
 	PlayerID string         `json:"player_id"`
 	Source   string         `json:"source"`
@@ -80,6 +91,7 @@ type Manager struct {
 	players map[string]*Player
 	remote  map[string]*Player
 	rooms   map[string]*Room
+	states  map[string]map[string]PlayerState
 	seq     atomic.Int64
 }
 
@@ -89,6 +101,7 @@ func NewManager(pubsub network.PubSub) *Manager {
 		players: make(map[string]*Player),
 		remote:  make(map[string]*Player),
 		rooms:   make(map[string]*Room),
+		states:  make(map[string]map[string]PlayerState),
 	}
 	m.startSync()
 	return m
@@ -334,12 +347,34 @@ func (m *Manager) SubmitInput(roomID string, in InputEvent) error {
 	if in.At.IsZero() {
 		in.At = time.Now().UTC()
 	}
+	if in.Action == "state_sync" {
+		m.upsertRoomState(roomID, in)
+	}
 	b, _ := json.Marshal(Event{Type: "room_input", RoomID: roomID, Input: &in, At: in.At})
 	return m.pubsub.Publish(topicForRoom(roomID), b)
 }
 
 func (m *Manager) SubscribeRoom(roomID string) (<-chan network.Message, func(), error) {
 	return m.pubsub.Subscribe(topicForRoom(roomID))
+}
+
+func (m *Manager) GetRoomStates(roomID string) (map[string]PlayerState, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if _, ok := m.rooms[roomID]; !ok {
+		return nil, ErrRoomNotFound
+	}
+	stateByPlayer, ok := m.states[roomID]
+	if !ok {
+		return map[string]PlayerState{}, nil
+	}
+	out := make(map[string]PlayerState, len(stateByPlayer))
+	for k, v := range stateByPlayer {
+		cp := v
+		cp.Board = append([]string(nil), v.Board...)
+		out[k] = cp
+	}
+	return out, nil
 }
 
 func (m *Manager) publishPlayerLocked(eventType string, p *Player) {
@@ -424,7 +459,79 @@ func (m *Manager) consumeRoomEvents(ch <-chan network.Message) {
 				p.UpdatedAt = time.Now().UTC()
 			}
 		}
+		if _, ok := m.states[cp.ID]; !ok {
+			m.states[cp.ID] = make(map[string]PlayerState)
+		}
 		m.mu.Unlock()
+	}
+}
+
+func (m *Manager) upsertRoomState(roomID string, in InputEvent) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.rooms[roomID]; !ok {
+		return
+	}
+	payload := in.Payload
+	if payload == nil {
+		return
+	}
+	boardAny, ok := payload["board"]
+	if !ok {
+		return
+	}
+	board, ok := toStringSlice(boardAny)
+	if !ok {
+		return
+	}
+	score, _ := toInt(payload["score"])
+	lines, _ := toInt(payload["lines"])
+	level, _ := toInt(payload["level"])
+	gameOver, _ := payload["game_over"].(bool)
+	if _, ok := m.states[roomID]; !ok {
+		m.states[roomID] = make(map[string]PlayerState)
+	}
+	m.states[roomID][in.PlayerID] = PlayerState{
+		PlayerID:  in.PlayerID,
+		Source:    in.Source,
+		Board:     board,
+		Score:     score,
+		Lines:     lines,
+		Level:     level,
+		GameOver:  gameOver,
+		UpdatedAt: time.Now().UTC(),
+	}
+}
+
+func toStringSlice(v any) ([]string, bool) {
+	switch vv := v.(type) {
+	case []string:
+		return append([]string(nil), vv...), true
+	case []any:
+		out := make([]string, 0, len(vv))
+		for _, item := range vv {
+			s, ok := item.(string)
+			if !ok {
+				return nil, false
+			}
+			out = append(out, s)
+		}
+		return out, true
+	default:
+		return nil, false
+	}
+}
+
+func toInt(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case float64:
+		return int(n), true
+	case float32:
+		return int(n), true
+	default:
+		return 0, false
 	}
 }
 

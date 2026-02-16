@@ -193,6 +193,37 @@ func TestTetrisRoomReadyAndControl(t *testing.T) {
 	if !bytes.Contains(roomRec2.Body.Bytes(), []byte(`"room_id":"`)) {
 		t.Fatalf("expected p2 in room, got %s", roomRec2.Body.String())
 	}
+
+	// Push one state_sync input from p1 and verify room state endpoint.
+	var p1 struct {
+		Player struct {
+			RoomID string `json:"room_id"`
+		} `json:"player"`
+	}
+	if err := json.Unmarshal([]byte(body), &p1); err != nil {
+		t.Fatalf("unmarshal p1 body: %v", err)
+	}
+	if p1.Player.RoomID == "" {
+		t.Fatalf("missing room id in p1 body: %s", body)
+	}
+
+	stateIn := []byte(`{"player_id":"p1","source":"human","action":"state_sync","payload":{"board":["..........",".........."],"score":10,"lines":1,"level":1,"game_over":false}}`)
+	inReq := httptest.NewRequest(http.MethodPost, "/api/tetris/room/"+p1.Player.RoomID+"/input", bytes.NewReader(stateIn))
+	inRec := httptest.NewRecorder()
+	muxA.ServeHTTP(inRec, inReq)
+	if inRec.Code != http.StatusOK {
+		t.Fatalf("state input failed: %d %s", inRec.Code, inRec.Body.String())
+	}
+
+	stateReq := httptest.NewRequest(http.MethodGet, "/api/tetris/room/"+p1.Player.RoomID+"/state", nil)
+	stateRec := httptest.NewRecorder()
+	muxA.ServeHTTP(stateRec, stateReq)
+	if stateRec.Code != http.StatusOK {
+		t.Fatalf("room state failed: %d %s", stateRec.Code, stateRec.Body.String())
+	}
+	if !bytes.Contains(stateRec.Body.Bytes(), []byte(`"states"`)) || !bytes.Contains(stateRec.Body.Bytes(), []byte(`"p1"`)) {
+		t.Fatalf("unexpected room state body: %s", stateRec.Body.String())
+	}
 }
 
 func TestClawdCityNodeEndpoint(t *testing.T) {

@@ -129,6 +129,18 @@ func (s *Server) handleTetrisRoom(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"room": room})
+	case action == "state" && r.Method == http.MethodGet:
+		room, err := s.tetris.GetRoom(roomID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		states, err := s.tetris.GetRoomStates(roomID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"room": room, "states": states})
 	case action == "stream" && r.Method == http.MethodGet:
 		s.handleTetrisRoomStream(w, r, roomID)
 	case action == "control" && r.Method == http.MethodPost:
