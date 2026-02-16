@@ -16,7 +16,7 @@ Game UI/app packages are now moved to `ClawdCity-Apps`.
 - Generic runtime layer: `internal/runtime` (session engine + adapter interface)
 - Game plugin layer: `internal/games/poker` (Texas Hold'em MVP with commit-reveal)
 - Web API: `internal/api`
-- Web UI: `web/index.html`
+- Web UI: `web/index.html` (AppMarket console)
 
 This code intentionally separates communication/runtime from game rules so more games can be added as adapters later.
 
@@ -28,6 +28,8 @@ GO111MODULE=on go run ./cmd/server -addr :8080
 ```
 
 Open `http://localhost:8080`.
+
+Home page is the service-layer AppMarket console (overview/config/network/apps/logs).
 
 ### Run with libp2p transport
 
@@ -57,6 +59,8 @@ Flags:
 - `-p2p-bootstrap` comma-separated `/p2p/` multiaddrs
 - `-p2p-rendezvous` mDNS service tag
 - `-p2p-mdns` enable/disable mDNS discovery
+- `-p2p-identity-key` private key file for stable peer id (default `data/p2p_identity.key`)
+- `-p2p-recent-peers` persisted recent peers file (default `data/recent_peers.json`)
 
 ## Test
 
@@ -98,6 +102,7 @@ New APIs:
 - `POST /api/clawdcity/control/apps/{app_id}/stop`
 - `GET /api/clawdcity/control/apps/{app_id}/health`
 - `POST /api/clawdcity/control/apps/{app_id}/invoke`
+- `GET /api/clawdcity/node`
 
 Quick run-through:
 
@@ -137,6 +142,19 @@ Open:
 - `http://127.0.0.1:8090/apps/tetris-web/web/tetris.html?apiBase=http://127.0.0.1:8080`
 
 `http://<host>:8080/tetris.html` now shows migration instructions.
+
+## Poker web app (moved)
+
+Start app-layer server:
+
+```bash
+cd ClawdCity-Apps
+GO111MODULE=on go run ./cmd/apps-web -addr :8090
+```
+
+Open:
+
+- `http://127.0.0.1:8090/apps/poker-web/web/index.html?apiBase=http://127.0.0.1:8080`
 
 ## Smart contract draft
 

@@ -19,13 +19,38 @@ import (
 )
 
 type Server struct {
-	engine *runtime.Engine
-	city   *clawdcity.City
-	tetris *tetrisroom.Manager
+	engine   *runtime.Engine
+	city     *clawdcity.City
+	tetris   *tetrisroom.Manager
+	nodeInfo func() NodeInfo
 }
 
 func NewServer(engine *runtime.Engine, city *clawdcity.City, tetris *tetrisroom.Manager) *Server {
-	return &Server{engine: engine, city: city, tetris: tetris}
+	return &Server{
+		engine: engine,
+		city:   city,
+		tetris: tetris,
+		nodeInfo: func() NodeInfo {
+			return NodeInfo{}
+		},
+	}
+}
+
+type NodeInfo struct {
+	NodeName       string   `json:"node_name"`
+	HTTPAddr       string   `json:"http_addr"`
+	Transport      string   `json:"transport"`
+	PeerID         string   `json:"peer_id,omitempty"`
+	ListenAddrs    []string `json:"listen_addrs,omitempty"`
+	Bootstrap      []string `json:"bootstrap,omitempty"`
+	ConnectedPeers []string `json:"connected_peers,omitempty"`
+}
+
+func (s *Server) SetNodeInfoProvider(provider func() NodeInfo) {
+	if provider == nil {
+		return
+	}
+	s.nodeInfo = provider
 }
 
 func (s *Server) Register(mux *http.ServeMux) {
@@ -38,6 +63,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/clawdcity/control/installed", s.handleCityInstalled)
 	mux.HandleFunc("/api/clawdcity/control/install", s.handleCityInstall)
 	mux.HandleFunc("/api/clawdcity/control/apps/", s.handleCityAppDetail)
+	mux.HandleFunc("/api/clawdcity/node", s.handleCityNode)
 	mux.HandleFunc("/api/tetris/register", s.handleTetrisRegister)
 	mux.HandleFunc("/api/tetris/ready", s.handleTetrisReady)
 	mux.HandleFunc("/api/tetris/player/", s.handleTetrisPlayer)
@@ -413,6 +439,18 @@ func (s *Server) handleCityAppDetail(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeError(w, http.StatusNotFound, "route not found")
 	}
+}
+
+func (s *Server) handleCityNode(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		writeNoContent(w)
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	writeJSON(w, http.StatusOK, s.nodeInfo())
 }
 
 func marketListingManifest(appID string, raw map[string]any) control.Manifest {

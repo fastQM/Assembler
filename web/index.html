@@ -1,332 +1,435 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OpenClaw Poker MVP</title>
+  <title>ClawdCity AppMarket</title>
   <style>
     :root {
-      --bg: #f4efe4;
-      --ink: #1f2a2e;
-      --accent: #0d6e61;
-      --card: #fffdf8;
-      --line: #d8cfbf;
-      --danger: #8a2332;
-      --table: #136a4e;
-      --table-edge: #0d4f3a;
-      --chip: #f3f7f4;
+      --bg: #eef3fb;
+      --panel: #ffffff;
+      --nav: #132238;
+      --nav-muted: #8ea4c3;
+      --nav-active: #213a5d;
+      --ink: #20324a;
+      --line: #d8e3f1;
+      --primary: #2068d8;
+      --ok: #2a9d6f;
+      --warn: #b65a2b;
+      --card-shadow: 0 10px 26px rgba(20, 44, 77, .08);
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 18% 8%, #ffffffaa 0, #ffffff00 36%),
+        linear-gradient(140deg, #eff4fc, var(--bg));
       color: var(--ink);
-      background: radial-gradient(circle at top left, #fff8e9, var(--bg) 55%);
+      min-height: 100vh;
     }
-    .wrap { max-width: 980px; margin: 32px auto; padding: 0 16px; }
-    h1 { margin: 0 0 16px; font-size: 28px; letter-spacing: .02em; }
-    .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-    .panel {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 14px;
-      box-shadow: 0 4px 16px rgba(38,24,8,.05);
+    .shell {
+      display: grid;
+      grid-template-columns: 250px 1fr;
+      min-height: 100vh;
     }
-    .table-wrap {
-      background: linear-gradient(180deg, var(--table) 0%, #0f5b44 100%);
-      border: 8px solid var(--table-edge);
-      border-radius: 22px;
-      padding: 16px;
-      color: #f4fff9;
-      min-height: 260px;
-      position: relative;
+    .nav {
+      background: linear-gradient(180deg, #162a44, #101d31);
+      color: #f4f8ff;
+      padding: 20px 14px;
+      border-right: 1px solid #1f3554;
     }
-    .table-center {
-      text-align: center;
-      margin: 6px 0 12px;
+    .brand {
+      font-size: 20px;
       font-weight: 700;
       letter-spacing: .03em;
+      margin-bottom: 16px;
     }
-    .seats {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-    }
-    .seat {
-      border: 1px solid rgba(255,255,255,.25);
-      background: rgba(5, 18, 14, .32);
-      border-radius: 10px;
-      padding: 8px;
-      min-height: 60px;
-    }
-    .seat.turn {
-      outline: 2px solid #f7d774;
-      box-shadow: 0 0 0 2px rgba(247,215,116,.25);
-    }
-    .seat .name { font-weight: 700; font-size: 13px; }
-    .seat .meta { font-size: 12px; opacity: .9; }
-    .cards {
-      display: flex;
-      justify-content: center;
-      gap: 6px;
-      margin-top: 8px;
-      flex-wrap: wrap;
-    }
-    .card-chip {
-      background: var(--chip);
-      color: #1f2a2e;
-      border-radius: 6px;
-      padding: 4px 8px;
-      border: 1px solid #d5e2da;
+    .brand small {
+      display: block;
+      color: var(--nav-muted);
       font-size: 12px;
-      font-weight: 600;
+      margin-top: 4px;
     }
-    label { display:block; font-size: 12px; opacity: .8; margin: 8px 0 4px; }
-    input, select, button {
-      width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: #fff;
+    .menu button {
+      width: 100%;
+      border: 0;
+      color: #e7f0fd;
+      background: transparent;
+      text-align: left;
+      padding: 10px 12px;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      cursor: pointer;
       font: inherit;
     }
-    button { cursor: pointer; background: var(--accent); color: white; border: none; margin-top: 8px; }
-    button.secondary { background: #446; }
-    button.danger { background: var(--danger); }
-    pre {
-      margin: 0; white-space: pre-wrap; word-break: break-word; background: #f8f3e8;
-      border: 1px solid var(--line); border-radius: 8px; padding: 10px; min-height: 120px;
+    .menu button.active,
+    .menu button:hover { background: var(--nav-active); }
+    .nav-note {
+      margin-top: 18px;
+      color: var(--nav-muted);
       font-size: 12px;
+      line-height: 1.5;
+      border-top: 1px solid #29466f;
+      padding-top: 12px;
+    }
+    .main {
+      padding: 20px;
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .title { margin: 0; font-size: 28px; color: #1b3d6d; }
+    .actions { display: flex; gap: 8px; }
+    .btn {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 10px;
+      padding: 9px 12px;
+      font: inherit;
+      cursor: pointer;
+      color: var(--ink);
+    }
+    .btn.primary {
+      border: 0;
+      background: linear-gradient(180deg, #3e8aff, var(--primary));
+      color: #fff;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(180px, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--card-shadow);
+      padding: 12px;
+    }
+    .metric b {
+      display: block;
+      font-size: 12px;
+      opacity: .7;
+      margin-bottom: 4px;
+    }
+    .metric span {
+      font-size: 24px;
+      font-weight: 700;
+      color: #2a4f83;
+    }
+    .section {
+      display: none;
+    }
+    .section.active {
+      display: block;
+    }
+    .list {
+      display: grid;
+      gap: 10px;
+    }
+    .item {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: #fff;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+    .item h4 {
+      margin: 0 0 4px;
+      font-size: 16px;
+    }
+    .meta {
+      font-size: 12px;
+      opacity: .78;
+      line-height: 1.5;
+    }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      font-size: 11px;
+      border-radius: 999px;
+      background: #e8f1ff;
+      color: #1f57a9;
+      margin-right: 6px;
+    }
+    .status {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+    .status.running {
+      background: #e4f6ec;
+      color: var(--ok);
+    }
+    .status.stopped {
+      background: #fff0e8;
+      color: var(--warn);
+    }
+    pre {
+      margin: 0;
+      background: #0d1a2e;
+      color: #d6ebff;
+      border-radius: 10px;
+      padding: 10px;
+      min-height: 140px;
+      overflow: auto;
+      font-size: 12px;
+    }
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    @media (max-width: 1020px) {
+      .shell { grid-template-columns: 1fr; }
+      .nav { border-right: 0; border-bottom: 1px solid #1f3554; }
+      .grid { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+      .two-col { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>OpenClaw Poker MVP</h1>
-    <div class="panel" style="margin-bottom:12px;">
-      <strong>应用层游戏入口</strong>
-      <div style="margin-top:8px;">
-        <a href="/tetris.html" style="font-weight:700;color:#234d9a;text-decoration:none;">查看 Tetris 应用迁移说明（已拆分到 ClawdCity-Apps）</a>
+  <div class="shell">
+    <aside class="nav">
+      <div class="brand">ClawdCity<small>AppMarket Console</small></div>
+      <div class="menu">
+        <button data-section="overview" class="active">Overview</button>
+        <button data-section="config">Config</button>
+        <button data-section="network">Network</button>
+        <button data-section="apps">Apps</button>
+        <button data-section="logs">Logs</button>
       </div>
-    </div>
-    <div class="grid">
-      <div class="panel">
-        <strong>1) 建立牌桌</strong>
-        <label>小盲</label><input id="sb" type="number" value="10" />
-        <label>大盲</label><input id="bb" type="number" value="20" />
-        <label>最大人数</label><input id="maxPlayers" type="number" value="6" />
-        <button onclick="createSession()">创建 Session</button>
-        <label>Session ID</label><input id="sessionId" placeholder="s_1" />
+      <div class="nav-note">
+        Service-layer UI only.<br>
+        Game UIs run in ClawdCity-Apps.
       </div>
+    </aside>
 
-      <div class="panel">
-        <strong>2) 玩家操作</strong>
-        <label>玩家ID</label><input id="playerId" value="alice" />
-        <label>买入/下注额度</label><input id="amount" type="number" value="1000" />
-        <label>动作</label>
-        <select id="actionType">
-          <option value="join">join</option>
-          <option value="start_hand">start_hand</option>
-          <option value="commit">commit</option>
-          <option value="reveal">reveal</option>
-          <option value="check">check</option>
-          <option value="call">call</option>
-          <option value="raise">raise</option>
-          <option value="fold">fold</option>
-        </select>
-        <label>commit/reveal 值</label><input id="seed" placeholder="seed or hash" />
-        <button class="secondary" onclick="makeCommitHash()">由 seed 计算 commit hash</button>
-        <button onclick="submitAction()">提交动作</button>
-      </div>
-
-      <div class="panel">
-        <strong>3) 刷新视图</strong>
-        <button class="secondary" onclick="loadSessions()">查看 Session 列表</button>
-        <button class="secondary" onclick="loadView()">查看当前玩家视图</button>
-        <button class="secondary" onclick="loadEvents()">查看事件日志</button>
-        <button class="secondary" onclick="toggleStream()">切换实时事件流</button>
-        <button class="danger" onclick="autoPoll()">切换自动刷新</button>
-      </div>
-    </div>
-
-    <div class="grid" style="margin-top:12px;">
-      <div class="panel">
-        <strong>Table Scene</strong>
-        <div id="tableScene" class="table-wrap">
-          <div class="table-center" id="tableMeta">等待创建牌桌</div>
-          <div class="cards" id="boardCards"></div>
-          <div class="cards" id="myCards"></div>
-          <div class="seats" id="seatGrid"></div>
+    <main class="main">
+      <div class="topbar">
+        <h1 class="title">AppMarket</h1>
+        <div class="actions">
+          <button class="btn" id="openPokerBtn">Open Poker App</button>
+          <button class="btn" id="openTetrisBtn">Open Tetris App</button>
+          <button class="btn primary" id="refreshBtn">Refresh</button>
         </div>
       </div>
-    </div>
 
-    <div class="grid" style="margin-top:12px;">
-      <div class="panel">
-        <strong>View</strong>
-        <pre id="viewBox"></pre>
+      <div class="grid">
+        <div class="card metric"><b>Transport</b><span id="mTransport">-</span></div>
+        <div class="card metric"><b>Peer ID</b><span id="mPeer" style="font-size:13px;line-height:1.4;word-break:break-all;">-</span></div>
+        <div class="card metric"><b>Connected Peers</b><span id="mPeers">0</span></div>
+        <div class="card metric"><b>Installed Apps</b><span id="mApps">0</span></div>
       </div>
-      <div class="panel">
-        <strong>Events</strong>
-        <pre id="eventBox"></pre>
-      </div>
-    </div>
+
+      <section id="section-overview" class="section active">
+        <div class="two-col">
+          <div class="card">
+            <h3 style="margin-top:0;">Node Snapshot</h3>
+            <pre id="overviewNode">{}</pre>
+          </div>
+          <div class="card">
+            <h3 style="margin-top:0;">Installed Snapshot</h3>
+            <pre id="overviewInstalled">{}</pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="section-config" class="section">
+        <div class="card">
+          <h3 style="margin-top:0;">Runtime Config (read-only)</h3>
+          <pre id="configBox">{}</pre>
+        </div>
+      </section>
+
+      <section id="section-network" class="section">
+        <div class="card">
+          <h3 style="margin-top:0;">Network Details</h3>
+          <pre id="networkBox">{}</pre>
+        </div>
+      </section>
+
+      <section id="section-apps" class="section">
+        <div class="two-col">
+          <div class="card">
+            <h3 style="margin-top:0;">Installed Apps</h3>
+            <div id="installedList" class="list"></div>
+          </div>
+          <div class="card">
+            <h3 style="margin-top:0;">Market Apps</h3>
+            <div id="marketList" class="list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="section-logs" class="section">
+        <div class="two-col">
+          <div class="card">
+            <h3 style="margin-top:0;">Market Stream</h3>
+            <pre id="marketLog"></pre>
+          </div>
+          <div class="card">
+            <h3 style="margin-top:0;">Control Actions</h3>
+            <pre id="controlLog"></pre>
+          </div>
+        </div>
+      </section>
+    </main>
   </div>
 
   <script>
-    let timer = null;
-    let eventSource = null;
+    const appsBase = `${window.location.protocol}//${window.location.hostname}:8090`;
+    let marketES = null;
 
-    async function createSession() {
-      const payload = {
-        game_id: 'poker',
-        params: {
-          small_blind: Number(document.getElementById('sb').value),
-          big_blind: Number(document.getElementById('bb').value),
-          max_players: Number(document.getElementById('maxPlayers').value)
-        }
-      };
-      const res = await fetch('/api/sessions', {
-        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+    function setSection(name) {
+      document.querySelectorAll('.menu button').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.section === name);
       });
-      const data = await res.json();
-      if (data.session_id) document.getElementById('sessionId').value = data.session_id;
-      write('eventBox', data);
-      connectStream();
-    }
-
-    async function submitAction() {
-      const sid = document.getElementById('sessionId').value.trim();
-      if (!sid) return;
-      const type = document.getElementById('actionType').value;
-      const amount = Number(document.getElementById('amount').value || 0);
-      const player = document.getElementById('playerId').value.trim();
-      const seed = document.getElementById('seed').value.trim();
-      const action = { player_id: player, type, amount };
-      if (type === 'commit') action.data = { hash: seed };
-      if (type === 'reveal') action.data = { seed };
-      const res = await fetch(`/api/sessions/${sid}/actions`, {
-        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(action)
-      });
-      write('eventBox', await res.json());
-      await loadView();
-    }
-
-    async function makeCommitHash() {
-      const seed = document.getElementById('seed').value.trim();
-      if (!seed) return;
-      const res = await fetch('/api/hash', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({seed})
-      });
-      const data = await res.json();
-      if (data.hash) document.getElementById('seed').value = data.hash;
-      write('eventBox', data);
-    }
-
-    async function loadSessions() {
-      const res = await fetch('/api/sessions');
-      write('eventBox', await res.json());
-    }
-
-    async function loadView() {
-      const sid = document.getElementById('sessionId').value.trim();
-      const player = document.getElementById('playerId').value.trim();
-      if (!sid || !player) return;
-      const res = await fetch(`/api/sessions/${sid}/view?player_id=${encodeURIComponent(player)}`);
-      const data = await res.json();
-      write('viewBox', data);
-      renderTable(data.view || {}, player);
-    }
-
-    async function loadEvents() {
-      const sid = document.getElementById('sessionId').value.trim();
-      if (!sid) return;
-      const res = await fetch(`/api/sessions/${sid}/events`);
-      write('eventBox', await res.json());
-    }
-
-    function autoPoll() {
-      if (timer) {
-        clearInterval(timer);
-        timer = null;
-        return;
-      }
-      timer = setInterval(async () => {
-        await loadView();
-        await loadEvents();
-      }, 2000);
-    }
-
-    function toggleStream() {
-      if (eventSource) {
-        eventSource.close();
-        eventSource = null;
-        return;
-      }
-      connectStream();
-    }
-
-    function connectStream() {
-      const sid = document.getElementById('sessionId').value.trim();
-      if (!sid || eventSource) return;
-      eventSource = new EventSource(`/api/sessions/${sid}/stream`);
-      eventSource.onmessage = (ev) => {
-        const existing = document.getElementById('eventBox').textContent || '';
-        const next = `${existing}\n${ev.data}`.trim();
-        document.getElementById('eventBox').textContent = next;
-      };
-      eventSource.onerror = () => {
-        eventSource.close();
-        eventSource = null;
-      };
+      document.querySelectorAll('.section').forEach(sec => sec.classList.remove('active'));
+      const target = document.getElementById(`section-${name}`);
+      if (target) target.classList.add('active');
     }
 
     function write(id, data) {
       document.getElementById(id).textContent = JSON.stringify(data, null, 2);
     }
 
-    function renderTable(view, currentPlayer) {
-      const phase = view.phase || 'waiting';
-      const handId = view.hand_id ?? '-';
-      const pot = view.pot ?? 0;
-      const currentBet = view.current_bet ?? 0;
-      const turnPlayer = view.turn_player || '-';
-      const players = Array.isArray(view.players) ? view.players : [];
-      const stacks = view.stacks || {};
-      const bets = view.bets || {};
-      const board = Array.isArray(view.board) ? view.board : [];
-      const hole = Array.isArray(view.hole_cards) ? view.hole_cards : [];
+    function appendLog(id, line) {
+      const el = document.getElementById(id);
+      const prefix = el.textContent ? `${el.textContent}\n` : '';
+      el.textContent = `${prefix}[${new Date().toLocaleTimeString()}] ${line}`;
+      el.scrollTop = el.scrollHeight;
+    }
 
-      document.getElementById('tableMeta').textContent =
-        `Hand #${handId} | Phase: ${phase} | Pot: ${pot} | Bet: ${currentBet} | Turn: ${turnPlayer}`;
+    async function getJSON(url) {
+      const res = await fetch(url, {headers: {'Accept': 'application/json'}});
+      return await res.json();
+    }
 
-      const boardEl = document.getElementById('boardCards');
-      boardEl.innerHTML = board.map(c => `<span class="card-chip">${fmtCard(c)}</span>`).join('');
-      if (!board.length) boardEl.innerHTML = '<span class="card-chip">No board cards</span>';
+    async function postJSON(url, body) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+      });
+      return await res.json();
+    }
 
-      const myEl = document.getElementById('myCards');
-      myEl.innerHTML = hole.map(c => `<span class="card-chip">${fmtCard(c)}</span>`).join('');
-      if (!hole.length) myEl.innerHTML = '<span class="card-chip">Your hole cards hidden</span>';
+    function appCard(app, controlsHTML) {
+      const manifest = app.manifest || {};
+      const appID = app.app_id || manifest.app_id || app.id || 'unknown';
+      const publisher = app.publisher || '-';
+      const version = app.version || manifest.version || '-';
+      const kind = app.kind || manifest.kind || '-';
+      const running = Boolean(app.running);
+      const status = running ? '<span class="status running">Running</span>' : '<span class="status stopped">Stopped</span>';
+      const tags = (app.tags || manifest.tags || []).map(t => `<span class="tag">${t}</span>`).join('');
+      return `<div class="item"><div><h4>${appID} ${status}</h4><div class="meta">${publisher} · ${version} · ${kind}</div><div style="margin-top:6px;">${tags}</div></div><div>${controlsHTML || ''}</div></div>`;
+    }
 
-      const seatEl = document.getElementById('seatGrid');
-      if (!players.length) {
-        seatEl.innerHTML = '<div class="seat">No players seated</div>';
-        return;
+    async function refreshAll() {
+      try {
+        const [node, installed, market] = await Promise.all([
+          getJSON('/api/clawdcity/node'),
+          getJSON('/api/clawdcity/control/installed'),
+          getJSON('/api/clawdcity/market/apps')
+        ]);
+
+        write('overviewNode', node);
+        write('configBox', {transport: node.transport, http_addr: node.http_addr, bootstrap: node.bootstrap});
+        write('networkBox', node);
+        write('overviewInstalled', installed);
+
+        document.getElementById('mTransport').textContent = node.transport || '-';
+        document.getElementById('mPeer').textContent = node.peer_id || '-';
+        document.getElementById('mPeers').textContent = String((node.connected_peers || []).length);
+        document.getElementById('mApps').textContent = String((installed.installed || []).length);
+
+        const installedList = document.getElementById('installedList');
+        const installedApps = installed.installed || [];
+        if (!installedApps.length) {
+          installedList.innerHTML = '<div class="meta">No installed apps.</div>';
+        } else {
+          installedList.innerHTML = installedApps.map(app => {
+            const appID = app.app_id || (app.manifest && app.manifest.app_id) || '';
+            return appCard(app, `
+            <button class="btn" onclick="startApp('${appID}')">Start</button>
+            <button class="btn" onclick="stopApp('${appID}')">Stop</button>
+            <button class="btn" onclick="healthApp('${appID}')">Health</button>
+          `);
+          }).join('');
+        }
+
+        const marketList = document.getElementById('marketList');
+        const marketApps = market.apps || [];
+        if (!marketApps.length) {
+          marketList.innerHTML = '<div class="meta">Market is empty.</div>';
+        } else {
+          marketList.innerHTML = marketApps.map(app => appCard(app, `<button class="btn primary" onclick="installApp('${app.app_id}')">Install</button>`)).join('');
+        }
+      } catch (err) {
+        appendLog('controlLog', `refresh failed: ${err}`);
       }
-      seatEl.innerHTML = players.map(p => {
-        const cls = p === turnPlayer ? 'seat turn' : 'seat';
-        const me = p === currentPlayer ? ' (you)' : '';
-        const stack = stacks[p] ?? 0;
-        const bet = bets[p] ?? 0;
-        return `<div class="${cls}"><div class="name">${p}${me}</div><div class="meta">stack: ${stack}</div><div class="meta">bet: ${bet}</div></div>`;
-      }).join('');
     }
 
-    function fmtCard(c) {
-      if (!c) return '?';
-      const rankMap = {11:'J',12:'Q',13:'K',14:'A'};
-      const r = rankMap[c.rank] || String(c.rank || '?');
-      return `${r}${c.suit || ''}`;
+    async function installApp(appID) {
+      const data = await postJSON('/api/clawdcity/control/install', {app_id: appID});
+      appendLog('controlLog', `install ${appID} -> ${JSON.stringify(data)}`);
+      await refreshAll();
     }
+
+    async function startApp(appID) {
+      const data = await postJSON(`/api/clawdcity/control/apps/${appID}/start`, {});
+      appendLog('controlLog', `start ${appID} -> ${JSON.stringify(data)}`);
+      await refreshAll();
+    }
+
+    async function stopApp(appID) {
+      const data = await postJSON(`/api/clawdcity/control/apps/${appID}/stop`, {});
+      appendLog('controlLog', `stop ${appID} -> ${JSON.stringify(data)}`);
+      await refreshAll();
+    }
+
+    async function healthApp(appID) {
+      const data = await getJSON(`/api/clawdcity/control/apps/${appID}/health`);
+      appendLog('controlLog', `health ${appID} -> ${JSON.stringify(data)}`);
+    }
+
+    function connectMarketStream() {
+      if (marketES) return;
+      marketES = new EventSource('/api/clawdcity/market/stream');
+      marketES.onmessage = (ev) => appendLog('marketLog', ev.data);
+      marketES.onerror = () => {
+        appendLog('marketLog', 'market stream disconnected');
+        marketES.close();
+        marketES = null;
+      };
+    }
+
+    document.querySelectorAll('.menu button').forEach(btn => {
+      btn.addEventListener('click', () => setSection(btn.dataset.section));
+    });
+    document.getElementById('refreshBtn').addEventListener('click', refreshAll);
+    document.getElementById('openPokerBtn').addEventListener('click', () => {
+      window.open(`${appsBase}/apps/poker-web/web/index.html?apiBase=${encodeURIComponent(window.location.origin)}`, '_blank');
+    });
+    document.getElementById('openTetrisBtn').addEventListener('click', () => {
+      window.open(`${appsBase}/apps/tetris-web/web/tetris.html?apiBase=${encodeURIComponent(window.location.origin)}`, '_blank');
+    });
+
+    refreshAll();
+    connectMarketStream();
   </script>
 </body>
 </html>

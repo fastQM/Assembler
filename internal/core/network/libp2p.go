@@ -2,12 +2,16 @@ package network
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"sync"
 
 	libp2p "github.com/libp2p/go-libp2p"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	mdns "github.com/libp2p/go-libp2p/p2p/discovery/mdns"
@@ -16,10 +20,11 @@ import (
 
 // Libp2pOptions configures the libp2p transport.
 type Libp2pOptions struct {
-	ListenAddrs []string
-	Bootstrap   []string
-	Rendezvous  string
-	EnableMDNS  bool
+	ListenAddrs     []string
+	Bootstrap       []string
+	Rendezvous      string
+	EnableMDNS      bool
+	IdentityKeyFile string
 }
 
 // Libp2pPubSub provides gossip-based pubsub over libp2p.
@@ -54,7 +59,17 @@ func NewLibp2pPubSub(parent context.Context, opts Libp2pOptions) (*Libp2pPubSub,
 		listenAddrs = append(listenAddrs, a)
 	}
 
-	h, err := libp2p.New(libp2p.ListenAddrs(listenAddrs...))
+	libp2pOpts := []libp2p.Option{libp2p.ListenAddrs(listenAddrs...)}
+	if opts.IdentityKeyFile != "" {
+		key, err := loadOrCreateIdentityKey(opts.IdentityKeyFile)
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("load identity key: %w", err)
+		}
+		libp2pOpts = append(libp2pOpts, libp2p.Identity(key))
+	}
+
+	h, err := libp2p.New(libp2pOpts...)
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("create host: %w", err)
@@ -169,6 +184,32 @@ func (p *Libp2pPubSub) ListenAddrs() []string {
 	return out
 }
 
+func (p *Libp2pPubSub) ConnectedPeers() []string {
+	peers := p.host.Network().Peers()
+	out := make([]string, 0, len(peers))
+	for _, pid := range peers {
+		out = append(out, pid.String())
+	}
+	return out
+}
+
+func (p *Libp2pPubSub) ConnectedPeerAddrs() []string {
+	peers := p.host.Network().Peers()
+	seen := make(map[string]struct{}, 16)
+	out := make([]string, 0, len(peers))
+	for _, pid := range peers {
+		for _, addr := range p.host.Peerstore().Addrs(pid) {
+			full := fmt.Sprintf("%s/p2p/%s", addr.String(), pid.String())
+			if _, ok := seen[full]; ok {
+				continue
+			}
+			seen[full] = struct{}{}
+			out = append(out, full)
+		}
+	}
+	return out
+}
+
 func (p *Libp2pPubSub) getOrJoinTopic(name string) (*pubsub.Topic, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -191,4 +232,29 @@ func (n *mdnsNotifee) HandlePeerFound(info peer.AddrInfo) {
 	if err := n.host.Connect(context.Background(), info); err != nil {
 		log.Printf("mdns connect failed %s: %v", info.ID, err)
 	}
+}
+
+func loadOrCreateIdentityKey(path string) (crypto.PrivKey, error) {
+	if b, err := os.ReadFile(path); err == nil && len(b) > 0 {
+		key, err := crypto.UnmarshalPrivateKey(b)
+		if err != nil {
+			return nil, fmt.Errorf("unmarshal private key: %w", err)
+		}
+		return key, nil
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, fmt.Errorf("mkdir key dir: %w", err)
+	}
+	key, _, err := crypto.GenerateEd25519Key(rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("generate ed25519 key: %w", err)
+	}
+	raw, err := crypto.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, fmt.Errorf("marshal private key: %w", err)
+	}
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		return nil, fmt.Errorf("write private key: %w", err)
+	}
+	return key, nil
 }

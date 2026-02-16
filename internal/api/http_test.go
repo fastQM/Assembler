@@ -172,3 +172,32 @@ func TestTetrisRoomReadyAndControl(t *testing.T) {
 		t.Fatalf("expected player in room, got %s", body)
 	}
 }
+
+func TestClawdCityNodeEndpoint(t *testing.T) {
+	pubsub := network.NewMemoryPubSub()
+	engine := runtime.NewEngine(pubsub)
+	city, err := clawdcity.New(pubsub)
+	if err != nil {
+		t.Fatalf("new city: %v", err)
+	}
+	server := NewServer(engine, city, tetrisroom.NewManager(pubsub))
+	server.SetNodeInfoProvider(func() NodeInfo {
+		return NodeInfo{
+			NodeName:  "ClawdCity",
+			HTTPAddr:  ":8080",
+			Transport: "memory",
+		}
+	})
+	mux := http.NewServeMux()
+	server.Register(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/clawdcity/node", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("node endpoint failed: %d %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"transport":"memory"`)) {
+		t.Fatalf("unexpected node response: %s", rec.Body.String())
+	}
+}
