@@ -4,8 +4,8 @@ Go + Web MVP for decentralized-game architecture on top of OpenClaw concepts.
 
 ## Repository split
 
-- Service layer (this repo): `/Users/qiumin/Desktop/workspace/ClawdCity`
-- Application layer (new repo): `/Users/qiumin/Desktop/workspace/ClawdCity-Apps`
+- Service layer (this repo): `ClawdCity`
+- Application layer (new repo): `ClawdCity-Apps`
 
 `ClawdCity` keeps networking/runtime/control/market APIs and room coordination.
 Game UI/app packages are now moved to `ClawdCity-Apps`.
@@ -23,7 +23,7 @@ This code intentionally separates communication/runtime from game rules so more 
 ## Run
 
 ```bash
-cd /Users/qiumin/Desktop/workspace/ClawdCity
+cd ClawdCity
 GO111MODULE=on go run ./cmd/server -addr :8080
 ```
 
@@ -61,7 +61,7 @@ Flags:
 ## Test
 
 ```bash
-cd /Users/qiumin/Desktop/workspace/ClawdCity
+cd ClawdCity
 GO111MODULE=on go test ./...
 ```
 
@@ -70,7 +70,7 @@ GO111MODULE=on go test ./...
 After server is running:
 
 ```bash
-cd /Users/qiumin/Desktop/workspace/ClawdCity
+cd ClawdCity
 GO111MODULE=on go run ./cmd/smoke -base http://127.0.0.1:8080
 ```
 
@@ -128,7 +128,7 @@ See `TEST_PLAN_2026-02-16.md`.
 Start app-layer server:
 
 ```bash
-cd /Users/qiumin/Desktop/workspace/ClawdCity-Apps
+cd ClawdCity-Apps
 GO111MODULE=on go run ./cmd/apps-web -addr :8090
 ```
 
