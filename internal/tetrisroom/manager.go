@@ -22,6 +22,7 @@ const (
 
 var (
 	ErrPlayerExists         = errors.New("player already exists")
+	ErrLocalSeatOccupied    = errors.New("local seat already occupied by another player")
 	ErrPlayerNotFound       = errors.New("player not found")
 	ErrRoomNotFound         = errors.New("room not found")
 	ErrAlreadyInRoom        = errors.New("player already in room")
@@ -77,16 +78,20 @@ type Manager struct {
 	mu      sync.RWMutex
 	pubsub  network.PubSub
 	players map[string]*Player
+	remote  map[string]*Player
 	rooms   map[string]*Room
 	seq     atomic.Int64
 }
 
 func NewManager(pubsub network.PubSub) *Manager {
-	return &Manager{
+	m := &Manager{
 		pubsub:  pubsub,
 		players: make(map[string]*Player),
+		remote:  make(map[string]*Player),
 		rooms:   make(map[string]*Room),
 	}
+	m.startSync()
+	return m
 }
 
 func (m *Manager) RegisterPlayer(id, appID, version string) (*Player, error) {
@@ -94,6 +99,9 @@ func (m *Manager) RegisterPlayer(id, appID, version string) (*Player, error) {
 	defer m.mu.Unlock()
 	if _, ok := m.players[id]; ok {
 		return nil, ErrPlayerExists
+	}
+	if len(m.players) > 0 {
+		return nil, ErrLocalSeatOccupied
 	}
 	p := &Player{
 		ID:          id,
@@ -112,6 +120,9 @@ func (m *Manager) UpsertPlayer(id, appID, version string) (*Player, error) {
 	defer m.mu.Unlock()
 	p, ok := m.players[id]
 	if !ok {
+		if len(m.players) > 0 {
+			return nil, ErrLocalSeatOccupied
+		}
 		p = &Player{ID: id, ControlMode: ControlHuman}
 		m.players[id] = p
 	}
@@ -159,23 +170,47 @@ func (m *Manager) SetReady(playerID string, pingMS int) (*Room, error) {
 }
 
 func (m *Manager) tryMatchLocked(appID, version string) *Room {
-	candidates := make([]*Player, 0, 4)
+	type candidate struct {
+		p     *Player
+		local bool
+	}
+	candidatesByID := make(map[string]candidate)
 	for _, p := range m.players {
 		if p.Ready && p.RoomID == "" && p.AppID == appID && p.Version == version {
-			candidates = append(candidates, p)
+			candidatesByID[p.ID] = candidate{p: p, local: true}
 		}
+	}
+	for _, p := range m.remote {
+		if p.Ready && p.RoomID == "" && p.AppID == appID && p.Version == version {
+			if _, exists := candidatesByID[p.ID]; !exists {
+				cp := *p
+				candidatesByID[p.ID] = candidate{p: &cp, local: false}
+			}
+		}
+	}
+	candidates := make([]candidate, 0, len(candidatesByID))
+	for _, c := range candidatesByID {
+		candidates = append(candidates, c)
 	}
 	if len(candidates) < 2 {
 		return nil
 	}
 	sort.Slice(candidates, func(i, j int) bool {
-		if candidates[i].PingMS == candidates[j].PingMS {
-			return candidates[i].ID < candidates[j].ID
+		if candidates[i].p.PingMS == candidates[j].p.PingMS {
+			return candidates[i].p.ID < candidates[j].p.ID
 		}
-		return candidates[i].PingMS < candidates[j].PingMS
+		return candidates[i].p.PingMS < candidates[j].p.PingMS
 	})
 	members := candidates[:2]
-	host := members[0]
+	host := members[0].p
+
+	owner := members[0].p.ID
+	if members[1].p.ID < owner {
+		owner = members[1].p.ID
+	}
+	if _, local := m.players[owner]; !local {
+		return nil
+	}
 
 	roomID := fmt.Sprintf("room_%d", m.seq.Add(1))
 	room := &Room{
@@ -183,16 +218,20 @@ func (m *Manager) tryMatchLocked(appID, version string) *Room {
 		AppID:     appID,
 		Version:   version,
 		HostID:    host.ID,
-		PlayerIDs: []string{members[0].ID, members[1].ID},
+		PlayerIDs: []string{members[0].p.ID, members[1].p.ID},
 		CreatedAt: time.Now().UTC(),
 	}
 	m.rooms[roomID] = room
 	for _, member := range members {
-		member.RoomID = roomID
-		member.Ready = false
-		member.ControlMode = ControlHuman
-		member.AgentID = ""
-		member.UpdatedAt = time.Now().UTC()
+		if member.local {
+			lp := m.players[member.p.ID]
+			lp.RoomID = roomID
+			lp.Ready = false
+			lp.ControlMode = ControlHuman
+			lp.AgentID = ""
+			lp.UpdatedAt = time.Now().UTC()
+		}
+		delete(m.remote, member.p.ID)
 	}
 
 	m.publishRoomLocked("room_assigned", room, map[string]any{"reason": "all_ready", "host_ping_ms": host.PingMS})
@@ -316,6 +355,77 @@ func (m *Manager) publishRoomLocked(eventType string, r *Room, meta map[string]a
 	b, _ := json.Marshal(evt)
 	_ = m.pubsub.Publish(topicForRoom(r.ID), b)
 	_ = m.pubsub.Publish("tetris.room", b)
+}
+
+func (m *Manager) startSync() {
+	playerCh, _, err := m.pubsub.Subscribe("tetris.player")
+	if err == nil {
+		go m.consumePlayerEvents(playerCh)
+	}
+	roomCh, _, err := m.pubsub.Subscribe("tetris.room")
+	if err == nil {
+		go m.consumeRoomEvents(roomCh)
+	}
+}
+
+func (m *Manager) consumePlayerEvents(ch <-chan network.Message) {
+	for msg := range ch {
+		var evt Event
+		if err := json.Unmarshal(msg.Payload, &evt); err != nil {
+			continue
+		}
+		if evt.Type != "player_ready" || evt.Player == nil {
+			continue
+		}
+		m.mu.Lock()
+		incoming := evt.Player
+		if local, ok := m.players[incoming.ID]; ok {
+			// Ensure local state stays fresh even when consuming self-published events.
+			if local.RoomID == "" {
+				local.Ready = incoming.Ready
+				local.PingMS = incoming.PingMS
+				local.AppID = incoming.AppID
+				local.Version = incoming.Version
+				local.UpdatedAt = time.Now().UTC()
+			}
+		} else {
+			cp := *incoming
+			if cp.RoomID == "" && cp.Ready {
+				m.remote[cp.ID] = &cp
+			} else {
+				delete(m.remote, cp.ID)
+			}
+		}
+		m.tryMatchLocked(incoming.AppID, incoming.Version)
+		m.mu.Unlock()
+	}
+}
+
+func (m *Manager) consumeRoomEvents(ch <-chan network.Message) {
+	for msg := range ch {
+		var evt Event
+		if err := json.Unmarshal(msg.Payload, &evt); err != nil {
+			continue
+		}
+		if evt.Type != "room_assigned" || evt.Room == nil {
+			continue
+		}
+		m.mu.Lock()
+		cp := *evt.Room
+		cp.PlayerIDs = append([]string(nil), evt.Room.PlayerIDs...)
+		m.rooms[cp.ID] = &cp
+		for _, pid := range cp.PlayerIDs {
+			delete(m.remote, pid)
+			if p, ok := m.players[pid]; ok {
+				p.RoomID = cp.ID
+				p.Ready = false
+				p.ControlMode = ControlHuman
+				p.AgentID = ""
+				p.UpdatedAt = time.Now().UTC()
+			}
+		}
+		m.mu.Unlock()
+	}
 }
 
 func topicForRoom(roomID string) string {

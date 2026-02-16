@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"ClawdCity/internal/clawdcity"
 	"ClawdCity/internal/core/network"
@@ -118,18 +119,27 @@ func TestClawdCityInstallStartInvoke(t *testing.T) {
 
 func TestTetrisRoomReadyAndControl(t *testing.T) {
 	pubsub := network.NewMemoryPubSub()
-	engine := runtime.NewEngine(pubsub)
-	engine.RegisterAdapter(poker.NewAdapter())
-	city, err := clawdcity.New(pubsub)
+	engineA := runtime.NewEngine(pubsub)
+	engineA.RegisterAdapter(poker.NewAdapter())
+	cityA, err := clawdcity.New(pubsub)
 	if err != nil {
 		t.Fatalf("new city: %v", err)
 	}
-	tetris := tetrisroom.NewManager(pubsub)
-	server := NewServer(engine, city, tetris)
-	mux := http.NewServeMux()
-	server.Register(mux)
+	engineB := runtime.NewEngine(pubsub)
+	engineB.RegisterAdapter(poker.NewAdapter())
+	cityB, err := clawdcity.New(pubsub)
+	if err != nil {
+		t.Fatalf("new city: %v", err)
+	}
 
-	reg := func(player string) {
+	serverA := NewServer(engineA, cityA, tetrisroom.NewManager(pubsub))
+	muxA := http.NewServeMux()
+	serverA.Register(muxA)
+	serverB := NewServer(engineB, cityB, tetrisroom.NewManager(pubsub))
+	muxB := http.NewServeMux()
+	serverB.Register(muxB)
+
+	reg := func(mux *http.ServeMux, player string) {
 		body := []byte(`{"player_id":"` + player + `","app_id":"tetris","version":"0.1.0"}`)
 		req := httptest.NewRequest(http.MethodPost, "/api/tetris/register", bytes.NewReader(body))
 		rec := httptest.NewRecorder()
@@ -138,38 +148,50 @@ func TestTetrisRoomReadyAndControl(t *testing.T) {
 			t.Fatalf("register %s failed: %d %s", player, rec.Code, rec.Body.String())
 		}
 	}
-	reg("p1")
-	reg("p2")
+	reg(muxA, "p1")
+	reg(muxB, "p2")
 
 	req1 := httptest.NewRequest(http.MethodPost, "/api/tetris/ready", bytes.NewReader([]byte(`{"player_id":"p1","ping_ms":50}`)))
 	rec1 := httptest.NewRecorder()
-	mux.ServeHTTP(rec1, req1)
+	muxA.ServeHTTP(rec1, req1)
 	if rec1.Code != http.StatusOK {
 		t.Fatalf("p1 ready failed: %d", rec1.Code)
 	}
 
 	req2 := httptest.NewRequest(http.MethodPost, "/api/tetris/ready", bytes.NewReader([]byte(`{"player_id":"p2","ping_ms":20}`)))
 	rec2 := httptest.NewRecorder()
-	mux.ServeHTTP(rec2, req2)
+	muxB.ServeHTTP(rec2, req2)
 	if rec2.Code != http.StatusOK {
 		t.Fatalf("p2 ready failed: %d body=%s", rec2.Code, rec2.Body.String())
 	}
-	if !bytes.Contains(rec2.Body.Bytes(), []byte(`"matched":true`)) {
-		t.Fatalf("expected matched response, got %s", rec2.Body.String())
-	}
-	if !bytes.Contains(rec2.Body.Bytes(), []byte(`"host_id":"p2"`)) {
-		t.Fatalf("expected lower ping p2 as host, got %s", rec2.Body.String())
-	}
 
-	roomReq := httptest.NewRequest(http.MethodGet, "/api/tetris/player/p1", nil)
-	roomRec := httptest.NewRecorder()
-	mux.ServeHTTP(roomRec, roomReq)
-	if roomRec.Code != http.StatusOK {
-		t.Fatalf("get player failed: %d", roomRec.Code)
+	var body string
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		roomReq := httptest.NewRequest(http.MethodGet, "/api/tetris/player/p1", nil)
+		roomRec := httptest.NewRecorder()
+		muxA.ServeHTTP(roomRec, roomReq)
+		if roomRec.Code != http.StatusOK {
+			t.Fatalf("get player failed: %d", roomRec.Code)
+		}
+		body = roomRec.Body.String()
+		if bytes.Contains([]byte(body), []byte(`"room_id":"`)) {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
-	body := roomRec.Body.String()
 	if !bytes.Contains([]byte(body), []byte(`"room_id":"`)) {
 		t.Fatalf("expected player in room, got %s", body)
+	}
+
+	roomReq2 := httptest.NewRequest(http.MethodGet, "/api/tetris/player/p2", nil)
+	roomRec2 := httptest.NewRecorder()
+	muxB.ServeHTTP(roomRec2, roomReq2)
+	if roomRec2.Code != http.StatusOK {
+		t.Fatalf("get p2 failed: %d", roomRec2.Code)
+	}
+	if !bytes.Contains(roomRec2.Body.Bytes(), []byte(`"room_id":"`)) {
+		t.Fatalf("expected p2 in room, got %s", roomRec2.Body.String())
 	}
 }
 
