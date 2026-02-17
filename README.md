@@ -1,24 +1,15 @@
 # ClawdCity
 
-Go + Web MVP for decentralized-game architecture on top of OpenClaw concepts.
+ClawdCity is the core service layer for OpenClaw-style decentralized systems.
 
-## Repository split
+This repository only keeps platform capabilities:
 
-- Service layer (this repo): `ClawdCity`
-- Application layer (new repo): `ClawdCity-Apps`
+- Execution Layer: sandboxed service runtime
+- Control Layer: install/start/stop/invoke/health lifecycle APIs
+- Market Layer: publish/discover/subscribe app listings
+- Network Layer: memory/libp2p pubsub transport
 
-`ClawdCity` keeps networking/runtime/control/market APIs and room coordination.
-Game UI/app packages are now moved to `ClawdCity-Apps`.
-
-## What is implemented
-
-- Transport/core layer: `internal/core/network` (in-memory pubsub)
-- Generic runtime layer: `internal/runtime` (session engine + adapter interface)
-- Game plugin layer: `internal/games/poker` (Texas Hold'em MVP with commit-reveal)
-- Web API: `internal/api`
-- Web UI: `web/index.html` (AppMarket console)
-
-This code intentionally separates communication/runtime from game rules so more games can be added as adapters later.
+Game logic and app UIs are hosted in `ClawdCity-Apps`.
 
 ## Run
 
@@ -27,40 +18,28 @@ cd ClawdCity
 GO111MODULE=on go run ./cmd/server -addr :8080
 ```
 
-Open `http://localhost:8080`.
-
-Home page is the service-layer AppMarket console (overview/config/network/apps/logs).
-
-### Run with libp2p transport
-
-Node A:
+## Run with libp2p
 
 ```bash
 GO111MODULE=on go run ./cmd/server \
   -addr :8080 \
   -transport libp2p \
-  -p2p-listen /ip4/0.0.0.0/tcp/4001
+  -p2p-listen /ip4/0.0.0.0/tcp/40001
 ```
 
-Node B (bootstrap to A):
+## API quick reference
 
-```bash
-GO111MODULE=on go run ./cmd/server \
-  -addr :8080 \
-  -transport libp2p \
-  -p2p-listen /ip4/0.0.0.0/tcp/4001 \
-  -p2p-bootstrap /ip4/<IP-1>/tcp/4001/p2p/<PEER_ID_OF_A>
-```
-
-Flags:
-
-- `-transport memory|libp2p` (default `memory`)
-- `-p2p-listen` comma-separated multiaddrs
-- `-p2p-bootstrap` comma-separated `/p2p/` multiaddrs
-- `-p2p-rendezvous` mDNS service tag
-- `-p2p-mdns` enable/disable mDNS discovery
-- `-p2p-identity-key` private key file for stable peer id (default `data/p2p_identity.key`)
-- `-p2p-recent-peers` persisted recent peers file (default `data/recent_peers.json`)
+- `GET /api/health`
+- `GET /api/clawdcity/market/apps?kind=&tag=`
+- `POST /api/clawdcity/market/apps`
+- `GET /api/clawdcity/market/stream` (SSE)
+- `GET /api/clawdcity/control/installed`
+- `POST /api/clawdcity/control/install`
+- `POST /api/clawdcity/control/apps/{app_id}/start`
+- `POST /api/clawdcity/control/apps/{app_id}/stop`
+- `GET /api/clawdcity/control/apps/{app_id}/health`
+- `POST /api/clawdcity/control/apps/{app_id}/invoke`
+- `GET /api/clawdcity/node`
 
 ## Test
 
@@ -69,117 +48,3 @@ cd ClawdCity
 GO111MODULE=on go test ./...
 ```
 
-## Smoke test (cross-platform)
-
-After server is running:
-
-```bash
-cd ClawdCity
-GO111MODULE=on go run ./cmd/smoke -base http://127.0.0.1:8080
-```
-
-## API quick reference
-
-- `GET /api/health`
-- `POST /api/hash` (`{"seed":"..."}`)
-- `GET /api/sessions`
-- `POST /api/sessions`
-- `POST /api/sessions/{id}/actions`
-- `GET /api/sessions/{id}/view?player_id=alice`
-- `GET /api/sessions/{id}/events`
-- `GET /api/sessions/{id}/stream` (SSE)
-
-## ClawdCity (Execution / Control / Market)
-
-New APIs:
-
-- `GET /api/clawdcity/market/apps?kind=&tag=`
-- `POST /api/clawdcity/market/apps`
-- `GET /api/clawdcity/market/stream` (SSE)
-- `GET /api/clawdcity/control/installed`
-- `POST /api/clawdcity/control/install` (`{"app_id":"counter-game"}`)
-- `POST /api/clawdcity/control/apps/{app_id}/start`
-- `POST /api/clawdcity/control/apps/{app_id}/stop`
-- `GET /api/clawdcity/control/apps/{app_id}/health`
-- `POST /api/clawdcity/control/apps/{app_id}/invoke`
-- `GET /api/clawdcity/node`
-
-Quick run-through:
-
-```bash
-curl -s http://127.0.0.1:8080/api/clawdcity/market/apps | jq
-curl -s -X POST http://127.0.0.1:8080/api/clawdcity/control/install -H 'content-type: application/json' -d '{"app_id":"counter-game"}'
-curl -s -X POST http://127.0.0.1:8080/api/clawdcity/control/apps/counter-game/start
-curl -s -X POST http://127.0.0.1:8080/api/clawdcity/control/apps/counter-game/invoke -H 'content-type: application/json' -d '{"method":"inc","params":{"player":"alice"}}'
-curl -s http://127.0.0.1:8080/api/clawdcity/control/apps/counter-game/health | jq
-```
-
-## Tetris Realtime Room APIs
-
-- `POST /api/tetris/register` (`player_id`, `app_id`, `version`)
-- `POST /api/tetris/ready` (`player_id`, `ping_ms`)
-- `GET /api/tetris/player/{player_id}`
-- `GET /api/tetris/room/{room_id}`
-- `GET /api/tetris/room/{room_id}/stream` (SSE)
-- `POST /api/tetris/room/{room_id}/control` (`player_id`, `to_mode=human|agent`, `agent_id`)
-- `POST /api/tetris/room/{room_id}/input` (`player_id`, `source=human|agent`, `action`, `payload`, `tick`)
-- `GET /api/tetris/room/{room_id}/state` (latest per-player state snapshots for agent observation)
-
-Agent integration notes:
-
-- OpenClaw bootstrap input can be minimal: `{app_id, player_id}`.
-- OpenClaw pulls and caches rules from app-side spec (for tetris: `/apps/tetris-web/spec.json`).
-- OpenClaw watches control mode via `/api/tetris/player/{player_id}` until mode becomes `agent`.
-- OpenClaw resolves room via `/api/tetris/player/{player_id}` (`player.room_id`).
-- OpenClaw reads observation from `/api/tetris/room/{id}/state` and submits actions to `/api/tetris/room/{id}/input` (`source=agent`).
-- Generic protocol reference for future apps: `docs/AGENT_ADAPTER.md`.
-
-## Multi-machine test plan
-
-See `TEST_PLAN_2026-02-16.md`.
-
-## Tetris web app (moved)
-
-Start app-layer server:
-
-```bash
-cd ClawdCity-Apps
-GO111MODULE=on go run ./cmd/apps-web -addr :8090
-```
-
-Open:
-
-- `http://127.0.0.1:8090/apps/tetris-web/web/tetris.html?apiBase=http://127.0.0.1:8080`
-
-`http://<host>:8080/tetris.html` now shows migration instructions.
-
-## Poker web app (moved)
-
-Start app-layer server:
-
-```bash
-cd ClawdCity-Apps
-GO111MODULE=on go run ./cmd/apps-web -addr :8090
-```
-
-Open:
-
-- `http://127.0.0.1:8090/apps/poker-web/web/index.html?apiBase=http://127.0.0.1:8080`
-
-## Smart contract draft
-
-- Contract file: `contracts/OpenClawGamePoints.sol`
-- Notes: `contracts/README.md`
-
-Design intent:
-
-1. Daily faucet claim (e.g. 1000 points / 24h).
-2. Non-transferable and non-redeemable points.
-3. Operator-driven on-chain settlement (`settleBatch`) for off-chain game results.
-
-## Next steps (recommended)
-
-1. Replace in-memory pubsub with libp2p transport.
-2. Add wallet-bound auth and signed actions.
-3. Add dispute-friendly hand transcript hashing.
-4. Expand poker evaluator (full hand ranking + side pots).

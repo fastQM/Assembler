@@ -220,8 +220,6 @@
       <div class="topbar">
         <h1 class="title">AppMarket</h1>
         <div class="actions">
-          <button class="btn" id="openPokerBtn">Open Poker App</button>
-          <button class="btn" id="openTetrisBtn">Open Tetris App</button>
           <button class="btn primary" id="refreshBtn">Refresh</button>
         </div>
       </div>
@@ -289,7 +287,6 @@
   </div>
 
   <script>
-    const appsBase = `${window.location.protocol}//${window.location.hostname}:8090`;
     let marketES = null;
 
     function setSection(name) {
@@ -421,13 +418,6 @@
       btn.addEventListener('click', () => setSection(btn.dataset.section));
     });
     document.getElementById('refreshBtn').addEventListener('click', refreshAll);
-    document.getElementById('openPokerBtn').addEventListener('click', () => {
-      window.open(`${appsBase}/apps/poker-web/web/index.html?apiBase=${encodeURIComponent(window.location.origin)}`, '_blank');
-    });
-    document.getElementById('openTetrisBtn').addEventListener('click', () => {
-      window.open(`${appsBase}/apps/tetris-web/web/tetris.html?apiBase=${encodeURIComponent(window.location.origin)}`, '_blank');
-    });
-
     refreshAll();
     connectMarketStream();
   </script>

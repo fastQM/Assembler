@@ -14,9 +14,6 @@ import (
 	"ClawdCity/internal/api"
 	"ClawdCity/internal/clawdcity"
 	"ClawdCity/internal/core/network"
-	"ClawdCity/internal/games/poker"
-	"ClawdCity/internal/runtime"
-	"ClawdCity/internal/tetrisroom"
 )
 
 func main() {
@@ -72,14 +69,11 @@ func main() {
 		defer closer()
 	}
 
-	engine := runtime.NewEngine(pubsub)
-	engine.RegisterAdapter(poker.NewAdapter())
 	city, err := clawdcity.New(pubsub)
 	if err != nil {
 		log.Fatal(err)
 	}
-	tetris := tetrisroom.NewManager(pubsub)
-	apiServer := api.NewServer(engine, city, tetris)
+	apiServer := api.NewServer(city)
 	apiServer.SetNodeInfoProvider(func() api.NodeInfo {
 		info := api.NodeInfo{
 			NodeName:  "ClawdCity",

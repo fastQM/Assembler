@@ -2,34 +2,25 @@ package api
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"ClawdCity/internal/clawdcity"
 	"ClawdCity/internal/clawdcity/control"
 	"ClawdCity/internal/clawdcity/execution"
 	"ClawdCity/internal/clawdcity/market"
-	"ClawdCity/internal/runtime"
-	"ClawdCity/internal/tetrisroom"
 )
 
 type Server struct {
-	engine   *runtime.Engine
 	city     *clawdcity.City
-	tetris   *tetrisroom.Manager
 	nodeInfo func() NodeInfo
 }
 
-func NewServer(engine *runtime.Engine, city *clawdcity.City, tetris *tetrisroom.Manager) *Server {
+func NewServer(city *clawdcity.City) *Server {
 	return &Server{
-		engine: engine,
-		city:   city,
-		tetris: tetris,
+		city: city,
 		nodeInfo: func() NodeInfo {
 			return NodeInfo{}
 		},
@@ -55,211 +46,16 @@ func (s *Server) SetNodeInfoProvider(provider func() NodeInfo) {
 
 func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/health", s.handleHealth)
-	mux.HandleFunc("/api/hash", s.handleHash)
-	mux.HandleFunc("/api/sessions", s.handleSessions)
-	mux.HandleFunc("/api/sessions/", s.handleSessionDetail)
 	mux.HandleFunc("/api/clawdcity/market/apps", s.handleCityMarketApps)
 	mux.HandleFunc("/api/clawdcity/market/stream", s.handleCityMarketStream)
 	mux.HandleFunc("/api/clawdcity/control/installed", s.handleCityInstalled)
 	mux.HandleFunc("/api/clawdcity/control/install", s.handleCityInstall)
 	mux.HandleFunc("/api/clawdcity/control/apps/", s.handleCityAppDetail)
 	mux.HandleFunc("/api/clawdcity/node", s.handleCityNode)
-	mux.HandleFunc("/api/tetris/register", s.handleTetrisRegister)
-	mux.HandleFunc("/api/tetris/ready", s.handleTetrisReady)
-	mux.HandleFunc("/api/tetris/player/", s.handleTetrisPlayer)
-	mux.HandleFunc("/api/tetris/room/", s.handleTetrisRoom)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
-}
-
-func (s *Server) handleHash(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodOptions {
-		writeNoContent(w)
-		return
-	}
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-	var req struct {
-		Seed string `json:"seed"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid json")
-		return
-	}
-	if strings.TrimSpace(req.Seed) == "" {
-		writeError(w, http.StatusBadRequest, "missing seed")
-		return
-	}
-	sum := sha256.Sum256([]byte(req.Seed))
-	writeJSON(w, http.StatusOK, map[string]any{"hash": fmt.Sprintf("%x", sum[:])})
-}
-
-func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodOptions {
-		writeNoContent(w)
-		return
-	}
-	if r.Method == http.MethodGet {
-		writeJSON(w, http.StatusOK, map[string]any{"sessions": s.engine.ListSessions()})
-		return
-	}
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-	var req struct {
-		GameID string         `json:"game_id"`
-		Params map[string]any `json:"params"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid json")
-		return
-	}
-	if req.GameID == "" {
-		writeError(w, http.StatusBadRequest, "missing game_id")
-		return
-	}
-	id, err := s.engine.CreateSession(req.GameID, req.Params)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"session_id": id})
-}
-
-func (s *Server) handleSessionDetail(w http.ResponseWriter, r *http.Request) {
-	trimmed := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
-	parts := strings.Split(strings.Trim(trimmed, "/"), "/")
-	if len(parts) == 0 || parts[0] == "" {
-		writeError(w, http.StatusNotFound, "missing session id")
-		return
-	}
-	sessionID := parts[0]
-	subPath := ""
-	if len(parts) > 1 {
-		subPath = parts[1]
-	}
-
-	switch {
-	case subPath == "stream" && r.Method == http.MethodGet:
-		s.handleStream(w, r, sessionID)
-	case subPath == "actions" && r.Method == http.MethodPost:
-		s.handleAction(w, r, sessionID)
-	case subPath == "view" && r.Method == http.MethodGet:
-		s.handleView(w, r, sessionID)
-	case subPath == "events" && r.Method == http.MethodGet:
-		s.handleEvents(w, r, sessionID)
-	case r.Method == http.MethodOptions:
-		writeNoContent(w)
-	default:
-		writeError(w, http.StatusNotFound, "route not found")
-	}
-}
-
-func (s *Server) handleAction(w http.ResponseWriter, r *http.Request, sessionID string) {
-	if r.Method == http.MethodOptions {
-		writeNoContent(w)
-		return
-	}
-	var action runtime.Action
-	if err := json.NewDecoder(r.Body).Decode(&action); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid action json")
-		return
-	}
-	events, err := s.engine.SubmitAction(sessionID, action)
-	if err != nil {
-		status := http.StatusBadRequest
-		if errors.Is(err, runtime.ErrSessionNotFound) {
-			status = http.StatusNotFound
-		}
-		writeError(w, status, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"events": events})
-}
-
-func (s *Server) handleView(w http.ResponseWriter, r *http.Request, sessionID string) {
-	if r.Method == http.MethodOptions {
-		writeNoContent(w)
-		return
-	}
-	playerID := r.URL.Query().Get("player_id")
-	if playerID == "" {
-		writeError(w, http.StatusBadRequest, "missing player_id")
-		return
-	}
-	view, err := s.engine.View(sessionID, playerID)
-	if err != nil {
-		status := http.StatusBadRequest
-		if errors.Is(err, runtime.ErrSessionNotFound) {
-			status = http.StatusNotFound
-		}
-		writeError(w, status, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"view": view})
-}
-
-func (s *Server) handleEvents(w http.ResponseWriter, _ *http.Request, sessionID string) {
-	events, err := s.engine.Events(sessionID)
-	if err != nil {
-		status := http.StatusBadRequest
-		if errors.Is(err, runtime.ErrSessionNotFound) {
-			status = http.StatusNotFound
-		}
-		writeError(w, status, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"events": events})
-}
-
-func (s *Server) handleStream(w http.ResponseWriter, r *http.Request, sessionID string) {
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		writeError(w, http.StatusInternalServerError, "streaming not supported")
-		return
-	}
-	ch, cancel, err := s.engine.Subscribe(sessionID)
-	if err != nil {
-		status := http.StatusBadRequest
-		if errors.Is(err, runtime.ErrSessionNotFound) {
-			status = http.StatusNotFound
-		}
-		writeError(w, status, err.Error())
-		return
-	}
-	defer cancel()
-
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.WriteHeader(http.StatusOK)
-	flusher.Flush()
-
-	keepalive := time.NewTicker(15 * time.Second)
-	defer keepalive.Stop()
-
-	for {
-		select {
-		case <-r.Context().Done():
-			return
-		case msg := <-ch:
-			if _, err := fmt.Fprintf(w, "event: message\ndata: %s\n\n", string(msg.Payload)); err != nil {
-				return
-			}
-			flusher.Flush()
-		case <-keepalive.C:
-			if _, err := fmt.Fprint(w, ": keepalive\n\n"); err != nil {
-				return
-			}
-			flusher.Flush()
-		}
-	}
 }
 
 func (s *Server) handleCityMarketApps(w http.ResponseWriter, r *http.Request) {

@@ -44,34 +44,6 @@ func (c *City) seedDefaults() error {
 			},
 			DefaultPolicy: execution.SandboxPolicy{Capabilities: []string{"read", "invoke"}, MaxCallsPerMinute: 240, MaxPayloadBytes: 8192},
 		},
-		{
-			AppID:     "echo-demo",
-			Publisher: "clawdcity",
-			Manifest: control.Manifest{
-				AppID:       "echo-demo",
-				Name:        "Echo Demo",
-				Version:     "0.1.0",
-				Kind:        "service",
-				Description: "Debug utility service for invoke/health checks",
-				Tags:        []string{"utility", "demo"},
-				Factory:     "echo.v1",
-			},
-			DefaultPolicy: execution.SandboxPolicy{Capabilities: []string{"invoke"}, MaxCallsPerMinute: 300, MaxPayloadBytes: 8192},
-		},
-		{
-			AppID:     "counter-game",
-			Publisher: "clawdcity",
-			Manifest: control.Manifest{
-				AppID:       "counter-game",
-				Name:        "Counter Game",
-				Version:     "0.1.0",
-				Kind:        "game",
-				Description: "Minimal multi-player counter game for pipeline testing",
-				Tags:        []string{"game", "demo"},
-				Factory:     "counter.v1",
-			},
-			DefaultPolicy: execution.SandboxPolicy{Capabilities: []string{"read", "write"}, MaxCallsPerMinute: 240, MaxPayloadBytes: 8192},
-		},
 	}
 	for _, app := range defaults {
 		if _, err := c.market.Publish(app); err != nil {
