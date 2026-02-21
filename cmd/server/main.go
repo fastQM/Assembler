@@ -14,17 +14,22 @@ import (
 	"ClawdCity/internal/api"
 	"ClawdCity/internal/clawdcity"
 	"ClawdCity/internal/core/network"
+	"ClawdCity/internal/localrpc"
 )
 
 func main() {
 	addr := flag.String("addr", ":8080", "http listen address")
 	transport := flag.String("transport", "memory", "transport: memory|libp2p")
 	p2pListen := flag.String("p2p-listen", "/ip4/0.0.0.0/tcp/0", "comma-separated libp2p listen multiaddrs")
-	p2pBootstrap := flag.String("p2p-bootstrap", "", "comma-separated bootstrap peer multiaddrs")
+	p2pBootstrap := flag.String("p2p-bootstrap", "/ip4/3.65.204.231/tcp/40001/p2p/12D3KooWAaYG182TYGF5GTfWu5CZpiWbf5r6GJwfuSsYRsErA5YL", "comma-separated bootstrap peer multiaddrs")
 	p2pRendezvous := flag.String("p2p-rendezvous", "ClawdCity", "libp2p mDNS rendezvous string")
 	p2pMDNS := flag.Bool("p2p-mdns", true, "enable libp2p mDNS discovery")
 	p2pIdentityKey := flag.String("p2p-identity-key", filepath.Join("data", "p2p_identity.key"), "libp2p private key path for stable peer id")
 	p2pRecentPeers := flag.String("p2p-recent-peers", filepath.Join("data", "recent_peers.json"), "file path to persist recently connected peers")
+	localRPCEnable := flag.Bool("local-rpc-enable", true, "enable local unix-socket RPC for app p2p access")
+	localRPCSock := flag.String("local-rpc-sock", filepath.Join("data", "clawdcity-p2p.sock"), "local rpc unix socket path")
+	localRPCRecords := flag.String("local-rpc-records", filepath.Join("data", "p2p_messages.jsonl"), "local rpc message store path")
+	localRPCCursors := flag.String("local-rpc-cursors", filepath.Join("data", "p2p_cursors.json"), "local rpc cursor store path")
 	flag.Parse()
 
 	var (
@@ -67,6 +72,33 @@ func main() {
 	}
 	if closer != nil {
 		defer closer()
+	}
+	var lp2pRef *network.Libp2pPubSub
+	if v, ok := pubsub.(*network.Libp2pPubSub); ok {
+		lp2pRef = v
+	}
+
+	if *localRPCEnable {
+		rpcServer, err := localrpc.NewServer(localrpc.Config{
+			SocketPath:  *localRPCSock,
+			RecordsPath: *localRPCRecords,
+			CursorPath:  *localRPCCursors,
+		}, pubsub, func() localrpc.NodeStatus {
+			st := localrpc.NodeStatus{Transport: *transport}
+			if lp2pRef != nil {
+				st.PeerID = lp2pRef.PeerID()
+				st.ConnectedPeers = len(lp2pRef.ConnectedPeers())
+			}
+			return st
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := rpcServer.Start(); err != nil {
+			log.Fatal(err)
+		}
+		defer func() { _ = rpcServer.Close() }()
+		log.Printf("local rpc enabled at unix://%s", *localRPCSock)
 	}
 
 	city, err := clawdcity.New(pubsub)

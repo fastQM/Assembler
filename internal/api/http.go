@@ -257,6 +257,7 @@ func marketListingManifest(appID string, raw map[string]any) control.Manifest {
 		Kind:        stringFromMap(raw, "kind"),
 		Description: stringFromMap(raw, "description"),
 		Factory:     stringFromMap(raw, "factory"),
+		LaunchURL:   stringFromMap(raw, "launch_url"),
 	}
 	if tags, ok := raw["tags"].([]any); ok {
 		manifest.Tags = make([]string, 0, len(tags))

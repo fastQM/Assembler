@@ -51,6 +51,17 @@
       font-size: 12px;
       margin-top: 4px;
     }
+    .nav-groups {
+      display: grid;
+      gap: 16px;
+    }
+    .menu-title {
+      margin: 0 0 8px;
+      color: var(--nav-muted);
+      font-size: 11px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
     .menu button {
       width: 100%;
       border: 0;
@@ -203,12 +214,17 @@
   <div class="shell">
     <aside class="nav">
       <div class="brand">ClawdCity<small>AppMarket Console</small></div>
-      <div class="menu">
-        <button data-section="overview" class="active">Overview</button>
-        <button data-section="config">Config</button>
-        <button data-section="network">Network</button>
-        <button data-section="apps">Apps</button>
-        <button data-section="logs">Logs</button>
+      <div class="nav-groups">
+        <div class="menu">
+          <p class="menu-title">Apps</p>
+          <button data-section="apps">Apps</button>
+        </div>
+        <div class="menu">
+          <p class="menu-title">Config</p>
+          <button data-section="overview" class="active">Overview</button>
+          <button data-section="config">Config</button>
+          <button data-section="logs">Logs</button>
+        </div>
       </div>
       <div class="nav-note">
         Service-layer UI only.<br>
@@ -248,13 +264,6 @@
         <div class="card">
           <h3 style="margin-top:0;">Runtime Config (read-only)</h3>
           <pre id="configBox">{}</pre>
-        </div>
-      </section>
-
-      <section id="section-network" class="section">
-        <div class="card">
-          <h3 style="margin-top:0;">Network Details</h3>
-          <pre id="networkBox">{}</pre>
         </div>
       </section>
 
@@ -335,6 +344,16 @@
       return `<div class="item"><div><h4>${appID} ${status}</h4><div class="meta">${publisher} · ${version} · ${kind}</div><div style="margin-top:6px;">${tags}</div></div><div>${controlsHTML || ''}</div></div>`;
     }
 
+    function resolveLaunchURL(raw) {
+      if (!raw) return '';
+      let u = String(raw).trim();
+      if (!u) return '';
+      u = u.replaceAll('{hostname}', window.location.hostname);
+      u = u.replaceAll('{origin}', window.location.origin);
+      if (u.startsWith('/')) return `${window.location.origin}${u}`;
+      return u;
+    }
+
     async function refreshAll() {
       try {
         const [node, installed, market] = await Promise.all([
@@ -345,7 +364,6 @@
 
         write('overviewNode', node);
         write('configBox', {transport: node.transport, http_addr: node.http_addr, bootstrap: node.bootstrap});
-        write('networkBox', node);
         write('overviewInstalled', installed);
 
         document.getElementById('mTransport').textContent = node.transport || '-';
@@ -360,10 +378,12 @@
         } else {
           installedList.innerHTML = installedApps.map(app => {
             const appID = app.app_id || (app.manifest && app.manifest.app_id) || '';
+            const launchURL = resolveLaunchURL((app.manifest && app.manifest.launch_url) || '');
             return appCard(app, `
             <button class="btn" onclick="startApp('${appID}')">Start</button>
             <button class="btn" onclick="stopApp('${appID}')">Stop</button>
             <button class="btn" onclick="healthApp('${appID}')">Health</button>
+            ${launchURL ? `<button class="btn primary" onclick="openApp('${launchURL}')">Open</button>` : ''}
           `);
           }).join('');
         }
@@ -373,7 +393,13 @@
         if (!marketApps.length) {
           marketList.innerHTML = '<div class="meta">Market is empty.</div>';
         } else {
-          marketList.innerHTML = marketApps.map(app => appCard(app, `<button class="btn primary" onclick="installApp('${app.app_id}')">Install</button>`)).join('');
+          marketList.innerHTML = marketApps.map(app => {
+            const launchURL = resolveLaunchURL((app.manifest && app.manifest.launch_url) || '');
+            return appCard(app, `
+              <button class="btn primary" onclick="installApp('${app.app_id}')">Install</button>
+              ${launchURL ? `<button class="btn" onclick="openApp('${launchURL}')">Open</button>` : ''}
+            `);
+          }).join('');
         }
       } catch (err) {
         appendLog('controlLog', `refresh failed: ${err}`);
@@ -401,6 +427,10 @@
     async function healthApp(appID) {
       const data = await getJSON(`/api/clawdcity/control/apps/${appID}/health`);
       appendLog('controlLog', `health ${appID} -> ${JSON.stringify(data)}`);
+    }
+
+    function openApp(url) {
+      window.open(url, '_blank');
     }
 
     function connectMarketStream() {

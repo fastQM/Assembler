@@ -24,6 +24,7 @@ type Manifest struct {
 	Description string   `json:"description"`
 	Tags        []string `json:"tags"`
 	Factory     string   `json:"factory"`
+	LaunchURL   string   `json:"launch_url,omitempty"`
 }
 
 type InstalledInfo struct {

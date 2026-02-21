@@ -10,7 +10,7 @@ import (
 	"ClawdCity/internal/core/network"
 )
 
-func TestClawdCityInstallStartInvoke(t *testing.T) {
+func TestClawdCityInstallStartHealth(t *testing.T) {
 	pubsub := network.NewMemoryPubSub()
 	city, err := clawdcity.New(pubsub)
 	if err != nil {
@@ -20,25 +20,35 @@ func TestClawdCityInstallStartInvoke(t *testing.T) {
 	mux := http.NewServeMux()
 	server.Register(mux)
 
-	listReq := httptest.NewRequest(http.MethodGet, "/api/clawdcity/control/installed", nil)
-	listRec := httptest.NewRecorder()
-	mux.ServeHTTP(listRec, listReq)
-	if listRec.Code != http.StatusOK {
-		t.Fatalf("installed failed: %d %s", listRec.Code, listRec.Body.String())
+	marketReq := httptest.NewRequest(http.MethodGet, "/api/clawdcity/market/apps", nil)
+	marketRec := httptest.NewRecorder()
+	mux.ServeHTTP(marketRec, marketReq)
+	if marketRec.Code != http.StatusOK {
+		t.Fatalf("market failed: %d %s", marketRec.Code, marketRec.Body.String())
 	}
-	if !bytes.Contains(listRec.Body.Bytes(), []byte(`"app_id":"appmarket"`)) {
-		t.Fatalf("appmarket should be preinstalled: %s", listRec.Body.String())
+	if !bytes.Contains(marketRec.Body.Bytes(), []byte(`"app_id":"social-web"`)) {
+		t.Fatalf("social-web should be in market: %s", marketRec.Body.String())
 	}
 
-	invokeReqBody := []byte(`{"method":"about","params":{}}`)
-	invokeReq := httptest.NewRequest(http.MethodPost, "/api/clawdcity/control/apps/appmarket/invoke", bytes.NewReader(invokeReqBody))
-	invokeRec := httptest.NewRecorder()
-	mux.ServeHTTP(invokeRec, invokeReq)
-	if invokeRec.Code != http.StatusOK {
-		t.Fatalf("invoke failed: %d %s", invokeRec.Code, invokeRec.Body.String())
+	installReq := httptest.NewRequest(http.MethodPost, "/api/clawdcity/control/install", bytes.NewReader([]byte(`{"app_id":"social-web"}`)))
+	installRec := httptest.NewRecorder()
+	mux.ServeHTTP(installRec, installReq)
+	if installRec.Code != http.StatusOK {
+		t.Fatalf("install failed: %d %s", installRec.Code, installRec.Body.String())
 	}
-	if !bytes.Contains(invokeRec.Body.Bytes(), []byte(`"name":"AppMarket"`)) {
-		t.Fatalf("unexpected invoke response: %s", invokeRec.Body.String())
+
+	startReq := httptest.NewRequest(http.MethodPost, "/api/clawdcity/control/apps/social-web/start", nil)
+	startRec := httptest.NewRecorder()
+	mux.ServeHTTP(startRec, startReq)
+	if startRec.Code != http.StatusOK {
+		t.Fatalf("start failed: %d %s", startRec.Code, startRec.Body.String())
+	}
+
+	healthReq := httptest.NewRequest(http.MethodGet, "/api/clawdcity/control/apps/social-web/health", nil)
+	healthRec := httptest.NewRecorder()
+	mux.ServeHTTP(healthRec, healthReq)
+	if healthRec.Code != http.StatusOK {
+		t.Fatalf("health failed: %d %s", healthRec.Code, healthRec.Body.String())
 	}
 }
 

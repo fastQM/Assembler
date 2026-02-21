@@ -31,18 +31,19 @@ func New(pubsub network.PubSub) (*City, error) {
 func (c *City) seedDefaults() error {
 	defaults := []market.Listing{
 		{
-			AppID:     "appmarket",
-			Publisher: "clawdcity",
+			AppID:     "social-web",
+			Publisher: "clawdcity-apps",
 			Manifest: control.Manifest{
-				AppID:       "appmarket",
-				Name:        "AppMarket",
+				AppID:       "social-web",
+				Name:        "ClawdCity Social",
 				Version:     "0.1.0",
-				Kind:        "service",
-				Description: "Default app catalog and subscription entrypoint",
-				Tags:        []string{"market", "default"},
-				Factory:     "appmarket.v1",
+				Kind:        "social",
+				Description: "P2P social app with profile setup, discovery, encrypted friend requests and direct messaging",
+				Tags:        []string{"social", "p2p", "chat"},
+				Factory:     "external-link.v1",
+				LaunchURL:   "http://{hostname}:8090/apps/social-web/web/index.html",
 			},
-			DefaultPolicy: execution.SandboxPolicy{Capabilities: []string{"read", "invoke"}, MaxCallsPerMinute: 240, MaxPayloadBytes: 8192},
+			DefaultPolicy: execution.SandboxPolicy{Capabilities: []string{"read"}, MaxCallsPerMinute: 180, MaxPayloadBytes: 16384},
 		},
 	}
 	for _, app := range defaults {
@@ -50,10 +51,7 @@ func (c *City) seedDefaults() error {
 			return err
 		}
 	}
-	if err := c.InstallFromMarket("appmarket", execution.SandboxPolicy{}); err != nil {
-		return err
-	}
-	return c.Start(context.Background(), "appmarket")
+	return nil
 }
 
 func (c *City) Publish(listing market.Listing) (market.Listing, error) {

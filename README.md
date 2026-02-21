@@ -41,10 +41,30 @@ GO111MODULE=on go run ./cmd/server \
 - `POST /api/clawdcity/control/apps/{app_id}/invoke`
 - `GET /api/clawdcity/node`
 
+## Local RPC for app p2p access
+
+ClawdCity also exposes a local UNIX-socket RPC server so apps can publish/subscribe
+without owning their own libp2p host.
+
+- Default socket: `data/clawdcity-p2p.sock`
+- Enable flag: `-local-rpc-enable=true`
+- Store files:
+  - `-local-rpc-records data/p2p_messages.jsonl`
+  - `-local-rpc-cursors data/p2p_cursors.json`
+- Topic ACL: app `X` can only use topics under `app.X` or `app.X.*`
+
+RPC service name is `P2P` (Go `net/rpc`):
+
+- `P2P.Publish(PublishArgs) -> PublishReply`
+- `P2P.Subscribe(SubscribeArgs) -> SubscribeReply`
+- `P2P.Pull(PullArgs) -> PullReply` (long-poll style delivery)
+- `P2P.Ack(AckArgs) -> AckReply`
+- `P2P.FetchHistory(HistoryArgs) -> HistoryReply`
+- `P2P.GetStatus(StatusArgs) -> StatusReply`
+
 ## Test
 
 ```bash
 cd ClawdCity
 GO111MODULE=on go test ./...
 ```
-
