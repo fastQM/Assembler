@@ -1,10 +1,13 @@
 package localrpc
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"ClawdCity/internal/core/network"
@@ -16,9 +19,19 @@ var (
 )
 
 type NodeStatus struct {
-	Transport      string
-	PeerID         string
-	ConnectedPeers int
+	Transport           string
+	PeerID              string
+	ConnectedPeers      int
+	ListenAddrs         []string
+	ConnectedPeerIDs    []string
+	ConnectedPeerAddrs  []string
+	StartedAt           time.Time
+	ActiveSubscriptions int
+	MessagesPublished   int64
+	MessagesInNetwork   int64
+	MessagesInStream    int64
+	MessagesFanout      int64
+	DirectSends         int64
 }
 
 type statusProvider func() NodeStatus
@@ -33,20 +46,39 @@ type subscription struct {
 type broker struct {
 	mu          sync.RWMutex
 	pubsub      network.PubSub
+	direct      network.DirectMessenger
 	store       *historyStore
 	subs        map[string]*subscription
 	topicCancel map[string]func()
 	statusFn    statusProvider
+
+	publishedLocal int64
+	inNetwork      int64
+	inStream       int64
+	fanoutCount    int64
+	directSent     int64
+}
+
+const directProtocol = "/lazyless/localrpc/direct/1.0.0"
+
+type directWire struct {
+	Topic   string `json:"topic"`
+	Payload []byte `json:"payload"`
 }
 
 func newBroker(pubsub network.PubSub, store *historyStore, statusFn statusProvider) *broker {
-	return &broker{
+	b := &broker{
 		pubsub:      pubsub,
 		store:       store,
 		subs:        make(map[string]*subscription),
 		topicCancel: make(map[string]func()),
 		statusFn:    statusFn,
 	}
+	if d, ok := pubsub.(network.DirectMessenger); ok {
+		b.direct = d
+		d.RegisterDirectHandler(directProtocol, b.handleDirectInbound)
+	}
+	return b
 }
 
 func (b *broker) publish(appID, topic string, payload []byte, headers map[string]string) (MessageRecord, error) {
@@ -60,6 +92,7 @@ func (b *broker) publish(appID, topic string, payload []byte, headers map[string
 	if err != nil {
 		return MessageRecord{}, err
 	}
+	atomic.AddInt64(&b.publishedLocal, 1)
 	b.fanout(rec)
 	if err := b.pubsub.Publish(topic, payload); err != nil {
 		return MessageRecord{}, err
@@ -154,11 +187,41 @@ func (b *broker) fetchHistory(appID, topic string, fromOffset int64, limit int) 
 	return b.store.list(topic, fromOffset, limit), nil
 }
 
-func (b *broker) getStatus() NodeStatus {
-	if b.statusFn == nil {
-		return NodeStatus{}
+func (b *broker) sendDirect(appID, peerID, topic string, payload []byte) error {
+	if err := validateTopic(appID, topic); err != nil {
+		return err
 	}
-	return b.statusFn()
+	if strings.TrimSpace(peerID) == "" {
+		return errors.New("peer_id required")
+	}
+	if b.direct == nil {
+		return errors.New("direct stream is unavailable on current transport")
+	}
+	wire, err := json.Marshal(directWire{Topic: topic, Payload: payload})
+	if err != nil {
+		return err
+	}
+	if err := b.direct.SendDirect(context.Background(), peerID, directProtocol, wire); err != nil {
+		return err
+	}
+	atomic.AddInt64(&b.directSent, 1)
+	return nil
+}
+
+func (b *broker) getStatus() NodeStatus {
+	var st NodeStatus
+	if b.statusFn != nil {
+		st = b.statusFn()
+	}
+	b.mu.RLock()
+	st.ActiveSubscriptions = len(b.subs)
+	b.mu.RUnlock()
+	st.MessagesPublished = atomic.LoadInt64(&b.publishedLocal)
+	st.MessagesInNetwork = atomic.LoadInt64(&b.inNetwork)
+	st.MessagesInStream = atomic.LoadInt64(&b.inStream)
+	st.MessagesFanout = atomic.LoadInt64(&b.fanoutCount)
+	st.DirectSends = atomic.LoadInt64(&b.directSent)
+	return st
 }
 
 func (b *broker) close() {
@@ -204,6 +267,7 @@ func (b *broker) ensureTopicReader(topic string) error {
 			if err != nil {
 				continue
 			}
+			atomic.AddInt64(&b.inNetwork, 1)
 			b.fanout(rec)
 		}
 	}()
@@ -219,9 +283,26 @@ func (b *broker) fanout(rec MessageRecord) {
 		}
 		select {
 		case sub.queue <- rec:
+			atomic.AddInt64(&b.fanoutCount, 1)
 		default:
 		}
 	}
+}
+
+func (b *broker) handleDirectInbound(_ string, payload []byte) {
+	var wire directWire
+	if err := json.Unmarshal(payload, &wire); err != nil {
+		return
+	}
+	if strings.TrimSpace(wire.Topic) == "" {
+		return
+	}
+	rec, err := b.store.append(wire.Topic, "", wire.Payload, nil, "stream")
+	if err != nil {
+		return
+	}
+	atomic.AddInt64(&b.inStream, 1)
+	b.fanout(rec)
 }
 
 func validateTopic(appID, topic string) error {

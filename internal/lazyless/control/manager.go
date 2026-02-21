@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"ClawdCity/internal/clawdcity/execution"
+	"ClawdCity/internal/lazyless/execution"
 )
 
 var (

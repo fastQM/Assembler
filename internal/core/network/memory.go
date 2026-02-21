@@ -1,6 +1,8 @@
 package network
 
 import (
+	"context"
+	"errors"
 	"sync"
 )
 
@@ -55,3 +57,9 @@ func (m *MemoryPubSub) Subscribe(topic string) (<-chan Message, func(), error) {
 	}
 	return ch, cancel, nil
 }
+
+func (m *MemoryPubSub) SendDirect(_ context.Context, _ string, _ string, _ []byte) error {
+	return errors.New("direct stream not supported on memory transport")
+}
+
+func (m *MemoryPubSub) RegisterDirectHandler(_ string, _ func(peerID string, payload []byte)) {}

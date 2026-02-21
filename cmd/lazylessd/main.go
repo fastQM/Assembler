@@ -5,22 +5,20 @@ import (
 	"encoding/json"
 	"flag"
 	"log"
-	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
-	"ClawdCity/internal/api"
 	"ClawdCity/internal/core/network"
-	"ClawdCity/internal/lazyless"
 	"ClawdCity/internal/localrpc"
 )
 
 func main() {
-	startedAt := time.Now().UTC()
-	addr := flag.String("addr", ":8080", "http listen address")
-	transport := flag.String("transport", "memory", "transport: memory|libp2p")
+	_ = flag.String("addr", "", "compat: ignored in rpc-only daemon")
+	transport := flag.String("transport", "libp2p", "transport: memory|libp2p")
 	p2pListen := flag.String("p2p-listen", "/ip4/0.0.0.0/tcp/0", "comma-separated libp2p listen multiaddrs")
 	p2pBootstrap := flag.String("p2p-bootstrap", "/ip4/3.65.204.231/tcp/40001/p2p/12D3KooWAaYG182TYGF5GTfWu5CZpiWbf5r6GJwfuSsYRsErA5YL", "comma-separated bootstrap peer multiaddrs")
 	p2pRendezvous := flag.String("p2p-rendezvous", "Lazyless", "libp2p mDNS rendezvous string")
@@ -33,6 +31,7 @@ func main() {
 	localRPCCursors := flag.String("local-rpc-cursors", filepath.Join("data", "p2p_cursors.json"), "local rpc cursor store path")
 	flag.Parse()
 
+	startedAt := time.Now().UTC()
 	var (
 		pubsub network.PubSub
 		closer func()
@@ -79,8 +78,10 @@ func main() {
 		lp2pRef = v
 	}
 
+	var rpcServer *localrpc.Server
 	if *localRPCEnable {
-		rpcServer, err := localrpc.NewServer(localrpc.Config{
+		var err error
+		rpcServer, err = localrpc.NewServer(localrpc.Config{
 			SocketPath:  *localRPCSock,
 			RecordsPath: *localRPCRecords,
 			CursorPath:  *localRPCCursors,
@@ -108,36 +109,14 @@ func main() {
 		log.Printf("local rpc enabled at unix://%s", *localRPCSock)
 	}
 
-	city, err := lazyless.New(pubsub)
-	if err != nil {
-		log.Fatal(err)
-	}
-	apiServer := api.NewServer(city)
-	apiServer.SetNodeInfoProvider(func() api.NodeInfo {
-		info := api.NodeInfo{
-			NodeName:  "Lazyless",
-			HTTPAddr:  *addr,
-			Transport: *transport,
-			Bootstrap: mergeUnique(splitCSV(*p2pBootstrap), loadRecentPeers(*p2pRecentPeers)),
-		}
-		if lp2p, ok := pubsub.(*network.Libp2pPubSub); ok {
-			info.PeerID = lp2p.PeerID()
-			info.ListenAddrs = lp2p.ListenAddrs()
-			info.ConnectedPeers = lp2p.ConnectedPeers()
-		}
-		return info
-	})
+	log.Printf("lazylessd running (rpc only, no http)")
+	waitForSignal()
+}
 
-	mux := http.NewServeMux()
-	apiServer.Register(mux)
-
-	webDir := filepath.Join("web")
-	mux.Handle("/", http.FileServer(http.Dir(webDir)))
-
-	log.Printf("Lazyless listening on %s", *addr)
-	if err := http.ListenAndServe(*addr, mux); err != nil {
-		log.Fatal(err)
-	}
+func waitForSignal() {
+	sigCh := make(chan os.Signal, 2)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	<-sigCh
 }
 
 func splitCSV(in string) []string {

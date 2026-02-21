@@ -1,4 +1,4 @@
-package clawdcity
+package lazyless
 
 import (
 	"testing"

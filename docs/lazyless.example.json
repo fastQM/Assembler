@@ -1,0 +1,20 @@
+{
+  "transport": "libp2p",
+  "http_addr": ":8080",
+  "p2p_listen": [
+    "/ip4/0.0.0.0/tcp/0"
+  ],
+  "p2p_bootstrap": [
+    "/ip4/3.65.204.231/tcp/40001/p2p/12D3KooWAaYG182TYGF5GTfWu5CZpiWbf5r6GJwfuSsYRsErA5YL"
+  ],
+  "p2p_mdns": true,
+  "p2p_rendezvous": "Lazyless",
+  "p2p_identity_key": "./data/p2p_identity.key",
+  "p2p_recent_peers": "./data/recent_peers.json",
+  "local_rpc_enable": true,
+  "local_rpc_sock": "./data/lazyless-p2p.sock",
+  "local_rpc_records": "./data/p2p_messages.jsonl",
+  "local_rpc_cursors": "./data/p2p_cursors.json",
+  "run_pid_file": "./data/run/lazyless.pid",
+  "run_log_file": "./data/run/lazyless.log"
+}

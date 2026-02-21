@@ -8,12 +8,12 @@ import (
 	"sync"
 	"time"
 
-	"ClawdCity/internal/clawdcity/control"
-	"ClawdCity/internal/clawdcity/execution"
+	"ClawdCity/internal/lazyless/control"
+	"ClawdCity/internal/lazyless/execution"
 	"ClawdCity/internal/core/network"
 )
 
-const Topic = "clawdcity.market"
+const Topic = "lazyless.market"
 
 var ErrAppIDRequired = errors.New("app id required")
 

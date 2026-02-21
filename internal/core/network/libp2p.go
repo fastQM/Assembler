@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -13,7 +14,9 @@ import (
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
+	coreNetwork "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	coreProtocol "github.com/libp2p/go-libp2p/core/protocol"
 	mdns "github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 	ma "github.com/multiformats/go-multiaddr"
 )
@@ -222,6 +225,36 @@ func (p *Libp2pPubSub) getOrJoinTopic(name string) (*pubsub.Topic, error) {
 	}
 	p.topics[name] = t
 	return t, nil
+}
+
+func (p *Libp2pPubSub) SendDirect(ctx context.Context, peerID string, protocol string, payload []byte) error {
+	pid, err := peer.Decode(peerID)
+	if err != nil {
+		return fmt.Errorf("decode peer id: %w", err)
+	}
+	s, err := p.host.NewStream(ctx, pid, coreProtocol.ID(protocol))
+	if err != nil {
+		return fmt.Errorf("open stream: %w", err)
+	}
+	defer s.Close()
+	if _, err := s.Write(payload); err != nil {
+		return fmt.Errorf("stream write: %w", err)
+	}
+	return nil
+}
+
+func (p *Libp2pPubSub) RegisterDirectHandler(protocol string, fn func(peerID string, payload []byte)) {
+	if fn == nil {
+		return
+	}
+	p.host.SetStreamHandler(coreProtocol.ID(protocol), func(s coreNetwork.Stream) {
+		defer s.Close()
+		payload, err := io.ReadAll(io.LimitReader(s, 4<<20))
+		if err != nil {
+			return
+		}
+		fn(s.Conn().RemotePeer().String(), payload)
+	})
 }
 
 type mdnsNotifee struct {

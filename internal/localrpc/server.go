@@ -92,10 +92,32 @@ type HistoryReply struct {
 type StatusArgs struct{}
 
 type StatusReply struct {
-	Transport      string
-	PeerID         string
-	ConnectedPeers int
-	Error          string
+	Transport           string
+	PeerID              string
+	ConnectedPeers      int
+	ListenAddrs         []string
+	ConnectedPeerIDs    []string
+	ConnectedPeerAddrs  []string
+	StartedAt           time.Time
+	ActiveSubscriptions int
+	MessagesPublished   int64
+	MessagesInNetwork   int64
+	MessagesInStream    int64
+	MessagesFanout      int64
+	DirectSends         int64
+	Error               string
+}
+
+type SendDirectArgs struct {
+	AppID   string
+	PeerID  string
+	Topic   string
+	Payload []byte
+}
+
+type SendDirectReply struct {
+	Sent  bool
+	Error string
 }
 
 func NewServer(cfg Config, pubsub network.PubSub, statusFn statusProvider) (*Server, error) {
@@ -207,5 +229,24 @@ func (a *API) GetStatus(_ StatusArgs, reply *StatusReply) error {
 	reply.Transport = st.Transport
 	reply.PeerID = st.PeerID
 	reply.ConnectedPeers = st.ConnectedPeers
+	reply.ListenAddrs = st.ListenAddrs
+	reply.ConnectedPeerIDs = st.ConnectedPeerIDs
+	reply.ConnectedPeerAddrs = st.ConnectedPeerAddrs
+	reply.StartedAt = st.StartedAt
+	reply.ActiveSubscriptions = st.ActiveSubscriptions
+	reply.MessagesPublished = st.MessagesPublished
+	reply.MessagesInNetwork = st.MessagesInNetwork
+	reply.MessagesInStream = st.MessagesInStream
+	reply.MessagesFanout = st.MessagesFanout
+	reply.DirectSends = st.DirectSends
+	return nil
+}
+
+func (a *API) SendDirect(args SendDirectArgs, reply *SendDirectReply) error {
+	if err := a.b.sendDirect(args.AppID, args.PeerID, args.Topic, args.Payload); err != nil {
+		reply.Error = err.Error()
+		return nil
+	}
+	reply.Sent = true
 	return nil
 }

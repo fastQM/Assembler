@@ -1,12 +1,12 @@
-package clawdcity
+package lazyless
 
 import (
 	"context"
 	"errors"
 
-	"ClawdCity/internal/clawdcity/control"
-	"ClawdCity/internal/clawdcity/execution"
-	"ClawdCity/internal/clawdcity/market"
+	"ClawdCity/internal/lazyless/control"
+	"ClawdCity/internal/lazyless/execution"
+	"ClawdCity/internal/lazyless/market"
 	"ClawdCity/internal/core/network"
 )
 
@@ -32,7 +32,7 @@ func (c *City) seedDefaults() error {
 	defaults := []market.Listing{
 		{
 			AppID:     "social-web",
-			Publisher: "clawdcity-apps",
+			Publisher: "lazyless-apps",
 			Manifest: control.Manifest{
 				AppID:       "social-web",
 				Name:        "ClawdCity Social",
