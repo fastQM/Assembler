@@ -41,7 +41,7 @@ func (c *City) seedDefaults() error {
 				Description: "P2P social app with profile setup, discovery, encrypted friend requests and direct messaging",
 				Tags:        []string{"social", "p2p", "chat"},
 				Factory:     "external-link.v1",
-				LaunchURL:   "http://{hostname}:8090/apps/social-web/web/index.html",
+				LaunchURL:   "http://{hostname}:8090/index.html",
 			},
 			DefaultPolicy: execution.SandboxPolicy{Capabilities: []string{"read"}, MaxCallsPerMinute: 180, MaxPayloadBytes: 16384},
 		},
