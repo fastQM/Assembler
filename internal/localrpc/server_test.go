@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"ClawdCity/internal/core/network"
+	"Assembler/internal/core/network"
 )
 
 func TestPublishSubscribeHistoryAndAck(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"ClawdCity/internal/core/network"
+	"Assembler/internal/core/network"
 )
 
 var (
@@ -61,6 +61,10 @@ type broker struct {
 
 const directProtocol = "/assembler/localrpc/direct/1.0.0"
 
+type appDiscoveryEnabler interface {
+	EnsureAppDiscovery(appID string) error
+}
+
 type directWire struct {
 	Topic   string `json:"topic"`
 	Payload []byte `json:"payload"`
@@ -85,7 +89,7 @@ func (b *broker) publish(appID, topic string, payload []byte, headers map[string
 	if err := validateTopic(appID, topic); err != nil {
 		return MessageRecord{}, err
 	}
-	if err := b.ensureTopicReader(topic); err != nil {
+	if err := b.ensureTopicReader(appID, topic); err != nil {
 		return MessageRecord{}, err
 	}
 	rec, err := b.store.append(topic, appID, payload, headers, "local_publish")
@@ -117,7 +121,7 @@ func (b *broker) subscribe(appID string, topics []string, fromOffset int64) (str
 		if err := validateTopic(appID, topic); err != nil {
 			return "", err
 		}
-		if err := b.ensureTopicReader(topic); err != nil {
+		if err := b.ensureTopicReader(appID, topic); err != nil {
 			return "", err
 		}
 		s.topics[topic] = struct{}{}
@@ -181,7 +185,7 @@ func (b *broker) fetchHistory(appID, topic string, fromOffset int64, limit int) 
 	if err := validateTopic(appID, topic); err != nil {
 		return nil, err
 	}
-	if err := b.ensureTopicReader(topic); err != nil {
+	if err := b.ensureTopicReader(appID, topic); err != nil {
 		return nil, err
 	}
 	return b.store.list(topic, fromOffset, limit), nil
@@ -247,7 +251,12 @@ func (b *broker) getSub(appID, subscriptionID string) (*subscription, error) {
 	return sub, nil
 }
 
-func (b *broker) ensureTopicReader(topic string) error {
+func (b *broker) ensureTopicReader(appID, topic string) error {
+	if d, ok := b.pubsub.(appDiscoveryEnabler); ok {
+		if err := d.EnsureAppDiscovery(appID); err != nil {
+			return err
+		}
+	}
 	b.mu.Lock()
 	if _, ok := b.topicCancel[topic]; ok {
 		b.mu.Unlock()

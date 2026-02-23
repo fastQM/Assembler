@@ -30,35 +30,43 @@ const (
 )
 
 type fileConfig struct {
-	Transport       string   `json:"transport"`
-	P2PListen       []string `json:"p2p_listen"`
-	P2PBootstrap    []string `json:"p2p_bootstrap"`
-	P2PMDNS         *bool    `json:"p2p_mdns"`
-	P2PRendezvous   string   `json:"p2p_rendezvous"`
-	P2PIdentityKey  string   `json:"p2p_identity_key"`
-	P2PRecentPeers  string   `json:"p2p_recent_peers"`
-	LocalRPCEnable  *bool    `json:"local_rpc_enable"`
-	LocalRPCSock    string   `json:"local_rpc_sock"`
-	LocalRPCRecords string   `json:"local_rpc_records"`
-	LocalRPCCursors string   `json:"local_rpc_cursors"`
-	RunPIDFile      string   `json:"run_pid_file"`
-	RunLogFile      string   `json:"run_log_file"`
+	Transport               string   `json:"transport"`
+	P2PListen               []string `json:"p2p_listen"`
+	P2PBootstrap            []string `json:"p2p_bootstrap"`
+	P2PMDNS                 *bool    `json:"p2p_mdns"`
+	P2PKadDHT               *bool    `json:"p2p_kad_dht"`
+	P2PKadApps              []string `json:"p2p_kad_apps"`
+	P2PKadDiscoveryInterval int      `json:"p2p_kad_discovery_interval_sec"`
+	P2PKadQueryTimeout      int      `json:"p2p_kad_query_timeout_sec"`
+	P2PRendezvous           string   `json:"p2p_rendezvous"`
+	P2PIdentityKey          string   `json:"p2p_identity_key"`
+	P2PRecentPeers          string   `json:"p2p_recent_peers"`
+	LocalRPCEnable          *bool    `json:"local_rpc_enable"`
+	LocalRPCSock            string   `json:"local_rpc_sock"`
+	LocalRPCRecords         string   `json:"local_rpc_records"`
+	LocalRPCCursors         string   `json:"local_rpc_cursors"`
+	RunPIDFile              string   `json:"run_pid_file"`
+	RunLogFile              string   `json:"run_log_file"`
 }
 
 type runtimeConfig struct {
-	Transport       string
-	P2PListen       []string
-	P2PBootstrap    []string
-	P2PMDNS         bool
-	P2PRendezvous   string
-	P2PIdentityKey  string
-	P2PRecentPeers  string
-	LocalRPCEnable  bool
-	LocalRPCSock    string
-	LocalRPCRecords string
-	LocalRPCCursors string
-	RunPIDFile      string
-	RunLogFile      string
+	Transport               string
+	P2PListen               []string
+	P2PBootstrap            []string
+	P2PMDNS                 bool
+	P2PKadDHT               bool
+	P2PKadApps              []string
+	P2PKadDiscoveryInterval time.Duration
+	P2PKadQueryTimeout      time.Duration
+	P2PRendezvous           string
+	P2PIdentityKey          string
+	P2PRecentPeers          string
+	LocalRPCEnable          bool
+	LocalRPCSock            string
+	LocalRPCRecords         string
+	LocalRPCCursors         string
+	RunPIDFile              string
+	RunLogFile              string
 }
 
 type statusArgs struct{}
@@ -490,19 +498,23 @@ func runLogs(args []string) int {
 
 func loadConfig(path string) (runtimeConfig, error) {
 	def := runtimeConfig{
-		Transport:       "libp2p",
-		P2PListen:       []string{"/ip4/0.0.0.0/tcp/0"},
-		P2PBootstrap:    []string{"/ip4/3.65.204.231/tcp/40001/p2p/12D3KooWAaYG182TYGF5GTfWu5CZpiWbf5r6GJwfuSsYRsErA5YL"},
-		P2PMDNS:         true,
-		P2PRendezvous:   "Assembler",
-		P2PIdentityKey:  filepath.Join("data", "p2p_identity.key"),
-		P2PRecentPeers:  filepath.Join("data", "recent_peers.json"),
-		LocalRPCEnable:  true,
-		LocalRPCSock:    filepath.Join("data", "assembler-p2p.sock"),
-		LocalRPCRecords: filepath.Join("data", "p2p_messages.jsonl"),
-		LocalRPCCursors: filepath.Join("data", "p2p_cursors.json"),
-		RunPIDFile:      filepath.Join("data", "run", "assembler.pid"),
-		RunLogFile:      filepath.Join("data", "run", "assembler.log"),
+		Transport:               "libp2p",
+		P2PListen:               []string{"/ip4/0.0.0.0/tcp/0"},
+		P2PBootstrap:            []string{"/ip4/3.65.204.231/tcp/40001/p2p/12D3KooWAaYG182TYGF5GTfWu5CZpiWbf5r6GJwfuSsYRsErA5YL"},
+		P2PMDNS:                 true,
+		P2PKadDHT:               true,
+		P2PKadApps:              []string{"social"},
+		P2PKadDiscoveryInterval: 20 * time.Second,
+		P2PKadQueryTimeout:      10 * time.Second,
+		P2PRendezvous:           "Assembler",
+		P2PIdentityKey:          filepath.Join("data", "p2p_identity.key"),
+		P2PRecentPeers:          filepath.Join("data", "recent_peers.json"),
+		LocalRPCEnable:          true,
+		LocalRPCSock:            filepath.Join("data", "assembler-p2p.sock"),
+		LocalRPCRecords:         filepath.Join("data", "p2p_messages.jsonl"),
+		LocalRPCCursors:         filepath.Join("data", "p2p_cursors.json"),
+		RunPIDFile:              filepath.Join("data", "run", "assembler.pid"),
+		RunLogFile:              filepath.Join("data", "run", "assembler.log"),
 	}
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -526,6 +538,18 @@ func loadConfig(path string) (runtimeConfig, error) {
 	}
 	if fc.P2PMDNS != nil {
 		def.P2PMDNS = *fc.P2PMDNS
+	}
+	if fc.P2PKadDHT != nil {
+		def.P2PKadDHT = *fc.P2PKadDHT
+	}
+	if fc.P2PKadApps != nil {
+		def.P2PKadApps = fc.P2PKadApps
+	}
+	if fc.P2PKadDiscoveryInterval > 0 {
+		def.P2PKadDiscoveryInterval = time.Duration(fc.P2PKadDiscoveryInterval) * time.Second
+	}
+	if fc.P2PKadQueryTimeout > 0 {
+		def.P2PKadQueryTimeout = time.Duration(fc.P2PKadQueryTimeout) * time.Second
 	}
 	if fc.P2PRendezvous != "" {
 		def.P2PRendezvous = fc.P2PRendezvous
@@ -564,6 +588,10 @@ func buildServerArgs(cfg runtimeConfig) []string {
 		"-p2p-bootstrap", strings.Join(cfg.P2PBootstrap, ","),
 		"-p2p-rendezvous", cfg.P2PRendezvous,
 		"-p2p-mdns", strconv.FormatBool(cfg.P2PMDNS),
+		"-p2p-kad-dht", strconv.FormatBool(cfg.P2PKadDHT),
+		"-p2p-kad-apps", strings.Join(cfg.P2PKadApps, ","),
+		"-p2p-kad-discovery-interval", cfg.P2PKadDiscoveryInterval.String(),
+		"-p2p-kad-query-timeout", cfg.P2PKadQueryTimeout.String(),
 		"-p2p-identity-key", cfg.P2PIdentityKey,
 		"-p2p-recent-peers", cfg.P2PRecentPeers,
 		"-local-rpc-enable", strconv.FormatBool(cfg.LocalRPCEnable),

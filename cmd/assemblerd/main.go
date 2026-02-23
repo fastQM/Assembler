@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	"ClawdCity/internal/core/network"
-	"ClawdCity/internal/localrpc"
+	"Assembler/internal/core/network"
+	"Assembler/internal/localrpc"
 )
 
 func main() {
@@ -22,6 +22,10 @@ func main() {
 	p2pBootstrap := flag.String("p2p-bootstrap", "/ip4/3.65.204.231/tcp/40001/p2p/12D3KooWAaYG182TYGF5GTfWu5CZpiWbf5r6GJwfuSsYRsErA5YL", "comma-separated bootstrap peer multiaddrs")
 	p2pRendezvous := flag.String("p2p-rendezvous", "Assembler", "libp2p mDNS rendezvous string")
 	p2pMDNS := flag.Bool("p2p-mdns", true, "enable libp2p mDNS discovery")
+	p2pKadDHT := flag.Bool("p2p-kad-dht", true, "enable libp2p kademlia dht discovery")
+	p2pKadApps := flag.String("p2p-kad-apps", "social", "comma-separated app ids allowed to use kademlia discovery (empty means all apps)")
+	p2pKadDiscoveryEvery := flag.Duration("p2p-kad-discovery-interval", 20*time.Second, "kademlia discovery interval")
+	p2pKadQueryTimeout := flag.Duration("p2p-kad-query-timeout", 10*time.Second, "kademlia discovery query timeout")
 	p2pIdentityKey := flag.String("p2p-identity-key", filepath.Join("data", "p2p_identity.key"), "libp2p private key path for stable peer id")
 	p2pRecentPeers := flag.String("p2p-recent-peers", filepath.Join("data", "recent_peers.json"), "file path to persist recently connected peers")
 	localRPCEnable := flag.Bool("local-rpc-enable", true, "enable local unix-socket RPC for app p2p access")
@@ -44,11 +48,15 @@ func main() {
 		bootstrap = mergeUnique(bootstrap, savedPeers)
 
 		lp2p, err := network.NewLibp2pPubSub(context.Background(), network.Libp2pOptions{
-			ListenAddrs:     splitCSV(*p2pListen),
-			Bootstrap:       bootstrap,
-			Rendezvous:      *p2pRendezvous,
-			EnableMDNS:      *p2pMDNS,
-			IdentityKeyFile: *p2pIdentityKey,
+			ListenAddrs:              splitCSV(*p2pListen),
+			Bootstrap:                bootstrap,
+			Rendezvous:               *p2pRendezvous,
+			EnableMDNS:               *p2pMDNS,
+			EnableKadDHT:             *p2pKadDHT,
+			KadDiscoveryApps:         splitCSV(*p2pKadApps),
+			KadDiscoveryInterval:     *p2pKadDiscoveryEvery,
+			KadDiscoveryQueryTimeout: *p2pKadQueryTimeout,
+			IdentityKeyFile:          *p2pIdentityKey,
 		})
 		if err != nil {
 			log.Fatal(err)

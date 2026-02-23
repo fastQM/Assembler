@@ -40,6 +40,13 @@ Flags:
 - `--pid-file <path>` default `./data/run/assembler.pid`
 - `--wait <duration>` default `8s`
 
+Discovery controls (via config -> forwarded to `assemblerd`):
+- `p2p_mdns` (LAN discovery switch)
+- `p2p_kad_dht` (WAN discovery switch)
+- `p2p_kad_apps` (which app IDs can trigger DHT discovery)
+- `p2p_kad_discovery_interval_sec`
+- `p2p_kad_query_timeout_sec`
+
 Behavior:
 1. Ensure run dir exists.
 2. If PID file exists and process alive, return already running.
@@ -133,6 +140,10 @@ Single JSON file at `./data/assembler.json`:
     "/ip4/3.65.204.231/tcp/40001/p2p/12D3KooWAaYG182TYGF5GTfWu5CZpiWbf5r6GJwfuSsYRsErA5YL"
   ],
   "p2p_mdns": true,
+  "p2p_kad_dht": true,
+  "p2p_kad_apps": ["social"],
+  "p2p_kad_discovery_interval_sec": 20,
+  "p2p_kad_query_timeout_sec": 10,
   "p2p_rendezvous": "Assembler",
   "p2p_identity_key": "./data/p2p_identity.key",
   "p2p_recent_peers": "./data/recent_peers.json",

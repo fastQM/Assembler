@@ -39,6 +39,10 @@ GO111MODULE=on go run ./cmd/assemblerctl stop
 
 Config template: `docs/assembler.example.json` (copy to `data/assembler.json` and adjust paths if needed).
 `assemblerctl start` now launches `cmd/assemblerd` (RPC-only daemon path).
+Discovery is configurable:
+- `p2p_mdns=true|false` (LAN discovery)
+- `p2p_kad_dht=true|false` (DHT discovery)
+- `p2p_kad_apps=["social", ...]` (app-level DHT discovery allowlist)
 
 ## Interface Mode
 

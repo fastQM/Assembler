@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"ClawdCity/internal/core/network"
+	"Assembler/internal/core/network"
 )
 
 type Config struct {

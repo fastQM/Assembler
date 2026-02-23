@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"ClawdCity/internal/assembler/control"
-	"ClawdCity/internal/assembler/execution"
-	"ClawdCity/internal/core/network"
+	"Assembler/internal/assembler/control"
+	"Assembler/internal/assembler/execution"
+	"Assembler/internal/core/network"
 )
 
 const Topic = "assembler.market"

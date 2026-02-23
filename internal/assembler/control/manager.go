@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"ClawdCity/internal/assembler/execution"
+	"Assembler/internal/assembler/execution"
 )
 
 var (

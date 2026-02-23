@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 
-	"ClawdCity/internal/assembler/control"
-	"ClawdCity/internal/assembler/execution"
-	"ClawdCity/internal/assembler/market"
-	"ClawdCity/internal/core/network"
+	"Assembler/internal/assembler/control"
+	"Assembler/internal/assembler/execution"
+	"Assembler/internal/assembler/market"
+	"Assembler/internal/core/network"
 )
 
 var ErrMarketAppNotFound = errors.New("app not found in market")
@@ -35,7 +35,7 @@ func (c *City) seedDefaults() error {
 			Publisher: "assembler-apps",
 			Manifest: control.Manifest{
 				AppID:       "social-web",
-				Name:        "ClawdCity Social",
+				Name:        "Assembler Social",
 				Version:     "0.1.0",
 				Kind:        "social",
 				Description: "P2P social app with profile setup, discovery, encrypted friend requests and direct messaging",

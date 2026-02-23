@@ -8,26 +8,36 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
+	"time"
 
 	libp2p "github.com/libp2p/go-libp2p"
+	dht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/discovery"
 	"github.com/libp2p/go-libp2p/core/host"
 	coreNetwork "github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	coreProtocol "github.com/libp2p/go-libp2p/core/protocol"
 	mdns "github.com/libp2p/go-libp2p/p2p/discovery/mdns"
+	routing "github.com/libp2p/go-libp2p/p2p/discovery/routing"
+	discoveryutil "github.com/libp2p/go-libp2p/p2p/discovery/util"
 	ma "github.com/multiformats/go-multiaddr"
 )
 
 // Libp2pOptions configures the libp2p transport.
 type Libp2pOptions struct {
-	ListenAddrs     []string
-	Bootstrap       []string
-	Rendezvous      string
-	EnableMDNS      bool
-	IdentityKeyFile string
+	ListenAddrs              []string
+	Bootstrap                []string
+	Rendezvous               string
+	EnableMDNS               bool
+	EnableKadDHT             bool
+	KadDiscoveryApps         []string
+	KadDiscoveryInterval     time.Duration
+	KadDiscoveryQueryTimeout time.Duration
+	IdentityKeyFile          string
 }
 
 // Libp2pPubSub provides gossip-based pubsub over libp2p.
@@ -37,9 +47,16 @@ type Libp2pPubSub struct {
 
 	host host.Host
 	ps   *pubsub.PubSub
+	dht  *dht.IpfsDHT
 
-	mu     sync.Mutex
-	topics map[string]*pubsub.Topic
+	mu                       sync.Mutex
+	topics                   map[string]*pubsub.Topic
+	rendezvous               string
+	enableKadDHT             bool
+	kadDiscoveryInterval     time.Duration
+	kadDiscoveryQueryTimeout time.Duration
+	discoveryAllowApps       map[string]struct{}
+	discoveryStarted         map[string]struct{}
 }
 
 func NewLibp2pPubSub(parent context.Context, opts Libp2pOptions) (*Libp2pPubSub, error) {
@@ -86,11 +103,24 @@ func NewLibp2pPubSub(parent context.Context, opts Libp2pOptions) (*Libp2pPubSub,
 	}
 
 	p := &Libp2pPubSub{
-		ctx:    ctx,
-		cancel: cancel,
-		host:   h,
-		ps:     ps,
-		topics: make(map[string]*pubsub.Topic),
+		ctx:                      ctx,
+		cancel:                   cancel,
+		host:                     h,
+		ps:                       ps,
+		topics:                   make(map[string]*pubsub.Topic),
+		rendezvous:               strings.TrimSpace(opts.Rendezvous),
+		enableKadDHT:             opts.EnableKadDHT,
+		kadDiscoveryInterval:     opts.KadDiscoveryInterval,
+		kadDiscoveryQueryTimeout: opts.KadDiscoveryQueryTimeout,
+		discoveryAllowApps:       make(map[string]struct{}),
+		discoveryStarted:         make(map[string]struct{}),
+	}
+	for _, appID := range opts.KadDiscoveryApps {
+		appID = strings.TrimSpace(appID)
+		if appID == "" {
+			continue
+		}
+		p.discoveryAllowApps[appID] = struct{}{}
 	}
 
 	if opts.EnableMDNS {
@@ -121,7 +151,63 @@ func NewLibp2pPubSub(parent context.Context, opts Libp2pOptions) (*Libp2pPubSub,
 		}
 	}
 
+	if opts.EnableKadDHT {
+		if opts.KadDiscoveryInterval <= 0 {
+			opts.KadDiscoveryInterval = 20 * time.Second
+		}
+		if opts.KadDiscoveryQueryTimeout <= 0 {
+			opts.KadDiscoveryQueryTimeout = 10 * time.Second
+		}
+		p.kadDiscoveryInterval = opts.KadDiscoveryInterval
+		p.kadDiscoveryQueryTimeout = opts.KadDiscoveryQueryTimeout
+		kad, err := dht.New(ctx, h, dht.Mode(dht.ModeAuto))
+		if err != nil {
+			log.Printf("kaddht init failed: %v", err)
+		} else {
+			p.dht = kad
+			if err := kad.Bootstrap(ctx); err != nil {
+				log.Printf("kaddht bootstrap failed: %v", err)
+			} else {
+				log.Printf("kaddht bootstrap ready")
+			}
+			for appID := range p.discoveryAllowApps {
+				if err := p.EnsureAppDiscovery(appID); err != nil {
+					log.Printf("kaddht app discovery init failed app=%s: %v", appID, err)
+				}
+			}
+		}
+	}
+
 	return p, nil
+}
+
+func (p *Libp2pPubSub) EnsureAppDiscovery(appID string) error {
+	if !p.enableKadDHT || p.dht == nil {
+		return nil
+	}
+	appID = strings.TrimSpace(appID)
+	if appID == "" {
+		return nil
+	}
+	if len(p.discoveryAllowApps) > 0 {
+		if _, ok := p.discoveryAllowApps[appID]; !ok {
+			return nil
+		}
+	}
+	namespace := p.discoveryNamespace(appID)
+	p.mu.Lock()
+	if _, ok := p.discoveryStarted[namespace]; ok {
+		p.mu.Unlock()
+		return nil
+	}
+	p.discoveryStarted[namespace] = struct{}{}
+	p.mu.Unlock()
+
+	rd := routing.NewRoutingDiscovery(p.dht)
+	go p.advertiseLoop(rd, namespace)
+	go p.findPeersLoop(rd, namespace, p.kadDiscoveryInterval, p.kadDiscoveryQueryTimeout)
+	log.Printf("kaddht discovery enabled for app=%s namespace=%s", appID, namespace)
+	return nil
 }
 
 func (p *Libp2pPubSub) Publish(topic string, payload []byte) error {
@@ -167,6 +253,9 @@ func (p *Libp2pPubSub) Subscribe(topic string) (<-chan Message, func(), error) {
 
 func (p *Libp2pPubSub) Close() error {
 	p.cancel()
+	if p.dht != nil {
+		_ = p.dht.Close()
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	for _, t := range p.topics {
@@ -255,6 +344,56 @@ func (p *Libp2pPubSub) RegisterDirectHandler(protocol string, fn func(peerID str
 		}
 		fn(s.Conn().RemotePeer().String(), payload)
 	})
+}
+
+func (p *Libp2pPubSub) advertiseLoop(rd discovery.Discovery, rendezvous string) {
+	if strings.TrimSpace(rendezvous) == "" {
+		return
+	}
+	discoveryutil.Advertise(p.ctx, rd, rendezvous)
+	<-p.ctx.Done()
+}
+
+func (p *Libp2pPubSub) findPeersLoop(rd discovery.Discovery, rendezvous string, every, queryTimeout time.Duration) {
+	if strings.TrimSpace(rendezvous) == "" {
+		return
+	}
+	t := time.NewTicker(every)
+	defer t.Stop()
+	run := func() {
+		ctx, cancel := context.WithTimeout(p.ctx, queryTimeout)
+		defer cancel()
+		peerCh, err := rd.FindPeers(ctx, rendezvous)
+		if err != nil {
+			log.Printf("kaddht find peers error: %v", err)
+			return
+		}
+		for info := range peerCh {
+			if info.ID == "" || info.ID == p.host.ID() {
+				continue
+			}
+			if err := p.host.Connect(p.ctx, info); err != nil {
+				continue
+			}
+		}
+	}
+	run()
+	for {
+		select {
+		case <-p.ctx.Done():
+			return
+		case <-t.C:
+			run()
+		}
+	}
+}
+
+func (p *Libp2pPubSub) discoveryNamespace(appID string) string {
+	base := strings.TrimSpace(p.rendezvous)
+	if base == "" {
+		base = "assembler"
+	}
+	return base + ".app." + appID
 }
 
 type mdnsNotifee struct {

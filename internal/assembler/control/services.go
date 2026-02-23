@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"ClawdCity/internal/assembler/execution"
+	"Assembler/internal/assembler/execution"
 )
 
 func RegisterBuiltinFactories(m *Manager) {
@@ -26,7 +26,7 @@ func (s *appMarketService) Invoke(_ context.Context, method string, params map[s
 		return map[string]any{
 			"name":    "AppMarket",
 			"version": "v1",
-			"notes":   "Use ClawdCity market APIs to publish/subscribe/install apps",
+			"notes":   "Use Assembler market APIs to publish/subscribe/install apps",
 		}, nil
 	default:
 		return nil, errors.New("unsupported method")

@@ -3,7 +3,7 @@ package assembler
 import (
 	"testing"
 
-	"ClawdCity/internal/core/network"
+	"Assembler/internal/core/network"
 )
 
 func TestCityDefaultFlow(t *testing.T) {
