@@ -31,7 +31,6 @@ const (
 
 type fileConfig struct {
 	Transport       string   `json:"transport"`
-	HTTPAddr        string   `json:"http_addr"`
 	P2PListen       []string `json:"p2p_listen"`
 	P2PBootstrap    []string `json:"p2p_bootstrap"`
 	P2PMDNS         *bool    `json:"p2p_mdns"`
@@ -48,7 +47,6 @@ type fileConfig struct {
 
 type runtimeConfig struct {
 	Transport       string
-	HTTPAddr        string
 	P2PListen       []string
 	P2PBootstrap    []string
 	P2PMDNS         bool
@@ -493,7 +491,6 @@ func runLogs(args []string) int {
 func loadConfig(path string) (runtimeConfig, error) {
 	def := runtimeConfig{
 		Transport:       "libp2p",
-		HTTPAddr:        ":8080",
 		P2PListen:       []string{"/ip4/0.0.0.0/tcp/0"},
 		P2PBootstrap:    []string{"/ip4/3.65.204.231/tcp/40001/p2p/12D3KooWAaYG182TYGF5GTfWu5CZpiWbf5r6GJwfuSsYRsErA5YL"},
 		P2PMDNS:         true,
@@ -520,9 +517,6 @@ func loadConfig(path string) (runtimeConfig, error) {
 	}
 	if fc.Transport != "" {
 		def.Transport = fc.Transport
-	}
-	if fc.HTTPAddr != "" {
-		def.HTTPAddr = fc.HTTPAddr
 	}
 	if len(fc.P2PListen) > 0 {
 		def.P2PListen = fc.P2PListen
@@ -565,7 +559,6 @@ func loadConfig(path string) (runtimeConfig, error) {
 
 func buildServerArgs(cfg runtimeConfig) []string {
 	args := []string{
-		"-addr", cfg.HTTPAddr,
 		"-transport", cfg.Transport,
 		"-p2p-listen", strings.Join(cfg.P2PListen, ","),
 		"-p2p-bootstrap", strings.Join(cfg.P2PBootstrap, ","),

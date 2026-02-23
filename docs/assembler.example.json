@@ -1,6 +1,5 @@
 {
   "transport": "libp2p",
-  "http_addr": ":8080",
   "p2p_listen": [
     "/ip4/0.0.0.0/tcp/0"
   ],

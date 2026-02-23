@@ -128,7 +128,6 @@ Single JSON file at `./data/assembler.json`:
 ```json
 {
   "transport": "libp2p",
-  "http_addr": ":8080",
   "p2p_listen": ["/ip4/0.0.0.0/tcp/0"],
   "p2p_bootstrap": [
     "/ip4/3.65.204.231/tcp/40001/p2p/12D3KooWAaYG182TYGF5GTfWu5CZpiWbf5r6GJwfuSsYRsErA5YL"

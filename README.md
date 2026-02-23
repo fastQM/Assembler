@@ -1,6 +1,6 @@
 # Assembler
 
-Assembler is the core service layer for OpenClaw-style decentralized systems.
+Assembler is a P2P-network-based application platform for building decentralized applications that can be assisted or controlled by agents.
 
 This repository only keeps platform capabilities:
 
@@ -15,14 +15,13 @@ Game logic and app UIs are hosted in `Assembler-Apps`.
 
 ```bash
 cd Assembler
-GO111MODULE=on go run ./cmd/server -addr :8080
+GO111MODULE=on go run ./cmd/assemblerd
 ```
 
 ## Run with libp2p
 
 ```bash
-GO111MODULE=on go run ./cmd/server \
-  -addr :8080 \
+GO111MODULE=on go run ./cmd/assemblerd \
   -transport libp2p \
   -p2p-listen /ip4/0.0.0.0/tcp/40001
 ```
@@ -41,19 +40,10 @@ GO111MODULE=on go run ./cmd/assemblerctl stop
 Config template: `docs/assembler.example.json` (copy to `data/assembler.json` and adjust paths if needed).
 `assemblerctl start` now launches `cmd/assemblerd` (RPC-only daemon path).
 
-## API quick reference
+## Interface Mode
 
-- `GET /api/health`
-- `GET /api/assembler/market/apps?kind=&tag=`
-- `POST /api/assembler/market/apps`
-- `GET /api/assembler/market/stream` (SSE)
-- `GET /api/assembler/control/installed`
-- `POST /api/assembler/control/install`
-- `POST /api/assembler/control/apps/{app_id}/start`
-- `POST /api/assembler/control/apps/{app_id}/stop`
-- `GET /api/assembler/control/apps/{app_id}/health`
-- `POST /api/assembler/control/apps/{app_id}/invoke`
-- `GET /api/assembler/node`
+Assembler now runs in RPC-only mode in this repository.
+The legacy HTTP gateway and web console have been removed.
 
 ## Local RPC for app p2p access
 
