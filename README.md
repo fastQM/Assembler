@@ -11,20 +11,10 @@ This repository only keeps platform capabilities:
 
 Game logic and app UIs are hosted in `Assembler-Apps`.
 
-## Run
+## Run (Daemon Mode Only)
 
-```bash
-cd Assembler
-GO111MODULE=on go run ./cmd/assemblerd
-```
-
-## Run with libp2p
-
-```bash
-GO111MODULE=on go run ./cmd/assemblerd \
-  -transport libp2p \
-  -p2p-listen /ip4/0.0.0.0/tcp/40001
-```
+Use `assemblerctl` as the only runtime entrypoint.
+It starts `cmd/assemblerd` in background, manages PID/log files, and provides lifecycle commands.
 
 ## Daemon Control (`assemblerctl`)
 
@@ -36,6 +26,9 @@ GO111MODULE=on go run ./cmd/assemblerctl rpc status
 GO111MODULE=on go run ./cmd/assemblerctl logs --lines 200 --follow=false
 GO111MODULE=on go run ./cmd/assemblerctl stop
 ```
+
+Log file is managed by daemon mode (default: `data/run/assembler.log`).
+If you run `cmd/assemblerd` directly in foreground for debugging, logs go to terminal instead of that file.
 
 Config template: `docs/assembler.example.json` (copy to `data/assembler.json` and adjust paths if needed).
 `assemblerctl start` now launches `cmd/assemblerd` (RPC-only daemon path).
