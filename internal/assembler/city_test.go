@@ -1,4 +1,4 @@
-package lazyless
+package assembler
 
 import (
 	"testing"

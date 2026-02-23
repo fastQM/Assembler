@@ -21,12 +21,12 @@ func main() {
 	transport := flag.String("transport", "libp2p", "transport: memory|libp2p")
 	p2pListen := flag.String("p2p-listen", "/ip4/0.0.0.0/tcp/0", "comma-separated libp2p listen multiaddrs")
 	p2pBootstrap := flag.String("p2p-bootstrap", "/ip4/3.65.204.231/tcp/40001/p2p/12D3KooWAaYG182TYGF5GTfWu5CZpiWbf5r6GJwfuSsYRsErA5YL", "comma-separated bootstrap peer multiaddrs")
-	p2pRendezvous := flag.String("p2p-rendezvous", "Lazyless", "libp2p mDNS rendezvous string")
+	p2pRendezvous := flag.String("p2p-rendezvous", "Assembler", "libp2p mDNS rendezvous string")
 	p2pMDNS := flag.Bool("p2p-mdns", true, "enable libp2p mDNS discovery")
 	p2pIdentityKey := flag.String("p2p-identity-key", filepath.Join("data", "p2p_identity.key"), "libp2p private key path for stable peer id")
 	p2pRecentPeers := flag.String("p2p-recent-peers", filepath.Join("data", "recent_peers.json"), "file path to persist recently connected peers")
 	localRPCEnable := flag.Bool("local-rpc-enable", true, "enable local unix-socket RPC for app p2p access")
-	localRPCSock := flag.String("local-rpc-sock", filepath.Join("data", "lazyless-p2p.sock"), "local rpc unix socket path")
+	localRPCSock := flag.String("local-rpc-sock", filepath.Join("data", "assembler-p2p.sock"), "local rpc unix socket path")
 	localRPCRecords := flag.String("local-rpc-records", filepath.Join("data", "p2p_messages.jsonl"), "local rpc message store path")
 	localRPCCursors := flag.String("local-rpc-cursors", filepath.Join("data", "p2p_cursors.json"), "local rpc cursor store path")
 	flag.Parse()
@@ -109,7 +109,7 @@ func main() {
 		log.Printf("local rpc enabled at unix://%s", *localRPCSock)
 	}
 
-	log.Printf("lazylessd running (rpc only, no http)")
+	log.Printf("assemblerd running (rpc only, no http)")
 	waitForSignal()
 }
 

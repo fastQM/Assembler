@@ -1,9 +1,9 @@
-# lazylessctl Command Design
+# assemblerctl Command Design
 
 ## Goals
-- Run Lazyless in daemon mode with deterministic lifecycle.
+- Run Assembler in daemon mode with deterministic lifecycle.
 - Provide one operator entrypoint for start/stop/status/logs.
-- Keep Lazyless core as headless runtime (RPC-first).
+- Keep Assembler core as headless runtime (RPC-first).
 - Keep local operations simple for OpenClaw skill integration.
 
 ## Non-goals
@@ -12,11 +12,11 @@
 - Multi-tenant auth in v1.
 
 ## Binary Layout
-- Runtime daemon: `cmd/lazylessd` (RPC-only daemon, default launch target).
-- Control CLI: `lazylessctl`.
+- Runtime daemon: `cmd/assemblerd` (RPC-only daemon, default launch target).
+- Control CLI: `assemblerctl`.
 
-Phase 1 implementation is available in `cmd/lazylessctl`.
-Phase 2 implementation is available in `cmd/lazylessd`.
+Phase 1 implementation is available in `cmd/assemblerctl`.
+Phase 2 implementation is available in `cmd/assemblerd`.
 
 ## Command Surface
 
@@ -27,17 +27,17 @@ Current implementation:
 - `logs`
 - `rpc status`
 
-### `lazylessctl start`
+### `assemblerctl start`
 Start daemon if not running.
 
 Flags:
-- `--config <path>` default `./data/lazyless.json`
+- `--config <path>` default `./data/assembler.json`
 - `--daemon` default `true`
 - `--workdir <path>` default `.`
 - `--daemon-bin <path>` optional, use prebuilt daemon binary
 - `--server-bin <path>` deprecated alias of `--daemon-bin`
-- `--log-file <path>` default `./data/run/lazyless.log`
-- `--pid-file <path>` default `./data/run/lazyless.pid`
+- `--log-file <path>` default `./data/run/assembler.log`
+- `--pid-file <path>` default `./data/run/assembler.pid`
 - `--wait <duration>` default `8s`
 
 Behavior:
@@ -54,11 +54,11 @@ Exit codes:
 - `11` start timeout
 - `12` spawn failure
 
-### `lazylessctl stop`
+### `assemblerctl stop`
 Stop daemon gracefully.
 
 Flags:
-- `--pid-file <path>` default `./data/run/lazyless.pid`
+- `--pid-file <path>` default `./data/run/assembler.pid`
 - `--timeout <duration>` default `10s`
 - `--force` default `false`
 
@@ -74,12 +74,12 @@ Exit codes:
 - `20` not running
 - `21` stop timeout
 
-### `lazylessctl status`
+### `assemblerctl status`
 Show runtime status.
 
 Flags:
-- `--pid-file <path>` default `./data/run/lazyless.pid`
-- `--rpc-sock <path>` default `./data/lazyless-p2p.sock`
+- `--pid-file <path>` default `./data/run/assembler.pid`
+- `--rpc-sock <path>` default `./data/assembler-p2p.sock`
 - `--json` default `false`
 
 Output fields:
@@ -100,11 +100,11 @@ Exit codes:
 - `30` stopped
 - `31` running but rpc unhealthy
 
-### `lazylessctl logs`
+### `assemblerctl logs`
 Tail daemon log file.
 
 Flags:
-- `--log-file <path>` default `./data/run/lazyless.log`
+- `--log-file <path>` default `./data/run/assembler.log`
 - `--follow` default `true`
 - `--lines <n>` default `200`
 
@@ -112,18 +112,18 @@ Behavior:
 - Read last N lines.
 - Follow mode tails appended logs.
 
-### `lazylessctl rpc status`
+### `assemblerctl rpc status`
 Directly query local RPC and print node info.
 
 Flags:
-- `--rpc-sock <path>` default `./data/lazyless-p2p.sock`
+- `--rpc-sock <path>` default `./data/assembler-p2p.sock`
 - `--json` default `false`
 
 Uses:
 - `P2P.GetStatus`
 
 ## Config Model (v1)
-Single JSON file at `./data/lazyless.json`:
+Single JSON file at `./data/assembler.json`:
 
 ```json
 {
@@ -134,15 +134,15 @@ Single JSON file at `./data/lazyless.json`:
     "/ip4/3.65.204.231/tcp/40001/p2p/12D3KooWAaYG182TYGF5GTfWu5CZpiWbf5r6GJwfuSsYRsErA5YL"
   ],
   "p2p_mdns": true,
-  "p2p_rendezvous": "Lazyless",
+  "p2p_rendezvous": "Assembler",
   "p2p_identity_key": "./data/p2p_identity.key",
   "p2p_recent_peers": "./data/recent_peers.json",
   "local_rpc_enable": true,
-  "local_rpc_sock": "./data/lazyless-p2p.sock",
+  "local_rpc_sock": "./data/assembler-p2p.sock",
   "local_rpc_records": "./data/p2p_messages.jsonl",
   "local_rpc_cursors": "./data/p2p_cursors.json",
-  "run_pid_file": "./data/run/lazyless.pid",
-  "run_log_file": "./data/run/lazyless.log"
+  "run_pid_file": "./data/run/assembler.pid",
+  "run_log_file": "./data/run/assembler.log"
 }
 ```
 
@@ -173,18 +173,18 @@ Minimum runtime artifacts:
 - No RPC TCP exposure in v1.
 
 ## OpenClaw Skill Integration
-The skill should call only `lazylessctl`:
-1. `lazylessctl start`
-2. `lazylessctl status --json`
-3. `lazylessctl rpc status --json`
-4. `lazylessctl logs --lines 200`
-5. `lazylessctl stop`
+The skill should call only `assemblerctl`:
+1. `assemblerctl start`
+2. `assemblerctl status --json`
+3. `assemblerctl rpc status --json`
+4. `assemblerctl logs --lines 200`
+5. `assemblerctl stop`
 
 This keeps the integration stable even if internal daemon args evolve.
 
 ## Phased Delivery
-- Phase 1: implemented `lazylessctl` lifecycle commands.
-- Phase 2: implemented `cmd/lazylessd` (RPC-only daemon path).
+- Phase 1: implemented `assemblerctl` lifecycle commands.
+- Phase 2: implemented `cmd/assemblerd` (RPC-only daemon path).
 - Phase 3: implemented richer `P2P.GetStatus` metrics:
   - listen addrs, connected peer ids/addrs
   - active subscriptions

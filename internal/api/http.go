@@ -7,18 +7,18 @@ import (
 	"net/http"
 	"strings"
 
-	"ClawdCity/internal/lazyless"
-	"ClawdCity/internal/lazyless/control"
-	"ClawdCity/internal/lazyless/execution"
-	"ClawdCity/internal/lazyless/market"
+	"ClawdCity/internal/assembler"
+	"ClawdCity/internal/assembler/control"
+	"ClawdCity/internal/assembler/execution"
+	"ClawdCity/internal/assembler/market"
 )
 
 type Server struct {
-	city     *lazyless.City
+	city     *assembler.City
 	nodeInfo func() NodeInfo
 }
 
-func NewServer(city *lazyless.City) *Server {
+func NewServer(city *assembler.City) *Server {
 	return &Server{
 		city: city,
 		nodeInfo: func() NodeInfo {
@@ -46,12 +46,12 @@ func (s *Server) SetNodeInfoProvider(provider func() NodeInfo) {
 
 func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/health", s.handleHealth)
-	mux.HandleFunc("/api/lazyless/market/apps", s.handleCityMarketApps)
-	mux.HandleFunc("/api/lazyless/market/stream", s.handleCityMarketStream)
-	mux.HandleFunc("/api/lazyless/control/installed", s.handleCityInstalled)
-	mux.HandleFunc("/api/lazyless/control/install", s.handleCityInstall)
-	mux.HandleFunc("/api/lazyless/control/apps/", s.handleCityAppDetail)
-	mux.HandleFunc("/api/lazyless/node", s.handleCityNode)
+	mux.HandleFunc("/api/assembler/market/apps", s.handleCityMarketApps)
+	mux.HandleFunc("/api/assembler/market/stream", s.handleCityMarketStream)
+	mux.HandleFunc("/api/assembler/control/installed", s.handleCityInstalled)
+	mux.HandleFunc("/api/assembler/control/install", s.handleCityInstall)
+	mux.HandleFunc("/api/assembler/control/apps/", s.handleCityAppDetail)
+	mux.HandleFunc("/api/assembler/node", s.handleCityNode)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
@@ -60,7 +60,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) handleCityMarketApps(w http.ResponseWriter, r *http.Request) {
 	if s.city == nil {
-		writeError(w, http.StatusServiceUnavailable, "lazyless unavailable")
+		writeError(w, http.StatusServiceUnavailable, "assembler unavailable")
 		return
 	}
 	if r.Method == http.MethodOptions {
@@ -102,7 +102,7 @@ func (s *Server) handleCityMarketApps(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCityMarketStream(w http.ResponseWriter, r *http.Request) {
 	if s.city == nil {
-		writeError(w, http.StatusServiceUnavailable, "lazyless unavailable")
+		writeError(w, http.StatusServiceUnavailable, "assembler unavailable")
 		return
 	}
 	flusher, ok := w.(http.Flusher)
@@ -139,7 +139,7 @@ func (s *Server) handleCityMarketStream(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) handleCityInstalled(w http.ResponseWriter, r *http.Request) {
 	if s.city == nil {
-		writeError(w, http.StatusServiceUnavailable, "lazyless unavailable")
+		writeError(w, http.StatusServiceUnavailable, "assembler unavailable")
 		return
 	}
 	if r.Method == http.MethodOptions {
@@ -155,7 +155,7 @@ func (s *Server) handleCityInstalled(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCityInstall(w http.ResponseWriter, r *http.Request) {
 	if s.city == nil {
-		writeError(w, http.StatusServiceUnavailable, "lazyless unavailable")
+		writeError(w, http.StatusServiceUnavailable, "assembler unavailable")
 		return
 	}
 	if r.Method == http.MethodOptions {
@@ -183,10 +183,10 @@ func (s *Server) handleCityInstall(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCityAppDetail(w http.ResponseWriter, r *http.Request) {
 	if s.city == nil {
-		writeError(w, http.StatusServiceUnavailable, "lazyless unavailable")
+		writeError(w, http.StatusServiceUnavailable, "assembler unavailable")
 		return
 	}
-	trimmed := strings.TrimPrefix(r.URL.Path, "/api/lazyless/control/apps/")
+	trimmed := strings.TrimPrefix(r.URL.Path, "/api/assembler/control/apps/")
 	parts := strings.Split(strings.Trim(trimmed, "/"), "/")
 	if len(parts) < 2 {
 		writeError(w, http.StatusNotFound, "route not found")

@@ -357,9 +357,9 @@
     async function refreshAll() {
       try {
         const [node, installed, market] = await Promise.all([
-          getJSON('/api/lazyless/node'),
-          getJSON('/api/lazyless/control/installed'),
-          getJSON('/api/lazyless/market/apps')
+          getJSON('/api/assembler/node'),
+          getJSON('/api/assembler/control/installed'),
+          getJSON('/api/assembler/market/apps')
         ]);
 
         write('overviewNode', node);
@@ -407,25 +407,25 @@
     }
 
     async function installApp(appID) {
-      const data = await postJSON('/api/lazyless/control/install', {app_id: appID});
+      const data = await postJSON('/api/assembler/control/install', {app_id: appID});
       appendLog('controlLog', `install ${appID} -> ${JSON.stringify(data)}`);
       await refreshAll();
     }
 
     async function startApp(appID) {
-      const data = await postJSON(`/api/lazyless/control/apps/${appID}/start`, {});
+      const data = await postJSON(`/api/assembler/control/apps/${appID}/start`, {});
       appendLog('controlLog', `start ${appID} -> ${JSON.stringify(data)}`);
       await refreshAll();
     }
 
     async function stopApp(appID) {
-      const data = await postJSON(`/api/lazyless/control/apps/${appID}/stop`, {});
+      const data = await postJSON(`/api/assembler/control/apps/${appID}/stop`, {});
       appendLog('controlLog', `stop ${appID} -> ${JSON.stringify(data)}`);
       await refreshAll();
     }
 
     async function healthApp(appID) {
-      const data = await getJSON(`/api/lazyless/control/apps/${appID}/health`);
+      const data = await getJSON(`/api/assembler/control/apps/${appID}/health`);
       appendLog('controlLog', `health ${appID} -> ${JSON.stringify(data)}`);
     }
 
@@ -435,7 +435,7 @@
 
     function connectMarketStream() {
       if (marketES) return;
-      marketES = new EventSource('/api/lazyless/market/stream');
+      marketES = new EventSource('/api/assembler/market/stream');
       marketES.onmessage = (ev) => appendLog('marketLog', ev.data);
       marketES.onerror = () => {
         appendLog('marketLog', 'market stream disconnected');

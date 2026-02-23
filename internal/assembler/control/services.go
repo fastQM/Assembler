@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"ClawdCity/internal/lazyless/execution"
+	"ClawdCity/internal/assembler/execution"
 )
 
 func RegisterBuiltinFactories(m *Manager) {

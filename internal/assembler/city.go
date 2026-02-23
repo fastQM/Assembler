@@ -1,12 +1,12 @@
-package lazyless
+package assembler
 
 import (
 	"context"
 	"errors"
 
-	"ClawdCity/internal/lazyless/control"
-	"ClawdCity/internal/lazyless/execution"
-	"ClawdCity/internal/lazyless/market"
+	"ClawdCity/internal/assembler/control"
+	"ClawdCity/internal/assembler/execution"
+	"ClawdCity/internal/assembler/market"
 	"ClawdCity/internal/core/network"
 )
 
@@ -32,7 +32,7 @@ func (c *City) seedDefaults() error {
 	defaults := []market.Listing{
 		{
 			AppID:     "social-web",
-			Publisher: "lazyless-apps",
+			Publisher: "assembler-apps",
 			Manifest: control.Manifest{
 				AppID:       "social-web",
 				Name:        "ClawdCity Social",

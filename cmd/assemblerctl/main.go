@@ -134,10 +134,10 @@ func main() {
 }
 
 func usage() {
-	fmt.Println("lazylessctl <command>")
+	fmt.Println("assemblerctl <command>")
 	fmt.Println("commands:")
-	fmt.Println("  start       start lazyless daemon")
-	fmt.Println("  stop        stop lazyless daemon")
+	fmt.Println("  start       start assembler daemon")
+	fmt.Println("  stop        stop assembler daemon")
 	fmt.Println("  status      show process + rpc status")
 	fmt.Println("  logs        print/tail daemon logs")
 	fmt.Println("  rpc status  query P2P.GetStatus over local rpc")
@@ -145,11 +145,11 @@ func usage() {
 
 func runStart(args []string) int {
 	fs := flag.NewFlagSet("start", flag.ContinueOnError)
-	configPath := fs.String("config", filepath.Join("data", "lazyless.json"), "config file path")
+	configPath := fs.String("config", filepath.Join("data", "assembler.json"), "config file path")
 	workdir := fs.String("workdir", ".", "working directory for daemon process")
 	daemon := fs.Bool("daemon", true, "run in daemon mode")
 	wait := fs.Duration("wait", 8*time.Second, "startup health timeout")
-	daemonBin := fs.String("daemon-bin", "", "optional lazyless daemon binary path")
+	daemonBin := fs.String("daemon-bin", "", "optional assembler daemon binary path")
 	serverBinCompat := fs.String("server-bin", "", "deprecated alias of --daemon-bin")
 	pidOverride := fs.String("pid-file", "", "pid file path override")
 	logOverride := fs.String("log-file", "", "log file path override")
@@ -206,7 +206,7 @@ func runStart(args []string) int {
 	if daemonPath != "" {
 		cmd = exec.Command(daemonPath, serverArgs...)
 	} else {
-		cmd = exec.Command("go", append([]string{"run", "./cmd/lazylessd"}, serverArgs...)...)
+		cmd = exec.Command("go", append([]string{"run", "./cmd/assemblerd"}, serverArgs...)...)
 	}
 	cmd.Dir = *workdir
 	if !*daemon {
@@ -264,7 +264,7 @@ func runStart(args []string) int {
 
 func runStop(args []string) int {
 	fs := flag.NewFlagSet("stop", flag.ContinueOnError)
-	configPath := fs.String("config", filepath.Join("data", "lazyless.json"), "config file path")
+	configPath := fs.String("config", filepath.Join("data", "assembler.json"), "config file path")
 	pidOverride := fs.String("pid-file", "", "pid file path override")
 	timeout := fs.Duration("timeout", 10*time.Second, "graceful stop timeout")
 	force := fs.Bool("force", false, "force kill on timeout")
@@ -313,7 +313,7 @@ func runStop(args []string) int {
 
 func runStatus(args []string) int {
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
-	configPath := fs.String("config", filepath.Join("data", "lazyless.json"), "config file path")
+	configPath := fs.String("config", filepath.Join("data", "assembler.json"), "config file path")
 	pidOverride := fs.String("pid-file", "", "pid file path override")
 	rpcOverride := fs.String("rpc-sock", "", "rpc socket override")
 	jsonOut := fs.Bool("json", false, "print json")
@@ -391,7 +391,7 @@ func runStatus(args []string) int {
 
 func runRPCStatus(args []string) int {
 	fs := flag.NewFlagSet("rpc status", flag.ContinueOnError)
-	configPath := fs.String("config", filepath.Join("data", "lazyless.json"), "config file path")
+	configPath := fs.String("config", filepath.Join("data", "assembler.json"), "config file path")
 	rpcOverride := fs.String("rpc-sock", "", "rpc socket override")
 	jsonOut := fs.Bool("json", false, "print json")
 	if err := fs.Parse(args); err != nil {
@@ -439,7 +439,7 @@ func runRPCStatus(args []string) int {
 
 func runLogs(args []string) int {
 	fs := flag.NewFlagSet("logs", flag.ContinueOnError)
-	configPath := fs.String("config", filepath.Join("data", "lazyless.json"), "config file path")
+	configPath := fs.String("config", filepath.Join("data", "assembler.json"), "config file path")
 	logOverride := fs.String("log-file", "", "log file path override")
 	lines := fs.Int("lines", 200, "lines from tail")
 	follow := fs.Bool("follow", true, "follow appended logs")
@@ -497,15 +497,15 @@ func loadConfig(path string) (runtimeConfig, error) {
 		P2PListen:       []string{"/ip4/0.0.0.0/tcp/0"},
 		P2PBootstrap:    []string{"/ip4/3.65.204.231/tcp/40001/p2p/12D3KooWAaYG182TYGF5GTfWu5CZpiWbf5r6GJwfuSsYRsErA5YL"},
 		P2PMDNS:         true,
-		P2PRendezvous:   "Lazyless",
+		P2PRendezvous:   "Assembler",
 		P2PIdentityKey:  filepath.Join("data", "p2p_identity.key"),
 		P2PRecentPeers:  filepath.Join("data", "recent_peers.json"),
 		LocalRPCEnable:  true,
-		LocalRPCSock:    filepath.Join("data", "lazyless-p2p.sock"),
+		LocalRPCSock:    filepath.Join("data", "assembler-p2p.sock"),
 		LocalRPCRecords: filepath.Join("data", "p2p_messages.jsonl"),
 		LocalRPCCursors: filepath.Join("data", "p2p_cursors.json"),
-		RunPIDFile:      filepath.Join("data", "run", "lazyless.pid"),
-		RunLogFile:      filepath.Join("data", "run", "lazyless.log"),
+		RunPIDFile:      filepath.Join("data", "run", "assembler.pid"),
+		RunLogFile:      filepath.Join("data", "run", "assembler.log"),
 	}
 	b, err := os.ReadFile(path)
 	if err != nil {

@@ -13,7 +13,7 @@ import (
 
 	"ClawdCity/internal/api"
 	"ClawdCity/internal/core/network"
-	"ClawdCity/internal/lazyless"
+	"ClawdCity/internal/assembler"
 	"ClawdCity/internal/localrpc"
 )
 
@@ -23,12 +23,12 @@ func main() {
 	transport := flag.String("transport", "memory", "transport: memory|libp2p")
 	p2pListen := flag.String("p2p-listen", "/ip4/0.0.0.0/tcp/0", "comma-separated libp2p listen multiaddrs")
 	p2pBootstrap := flag.String("p2p-bootstrap", "/ip4/3.65.204.231/tcp/40001/p2p/12D3KooWAaYG182TYGF5GTfWu5CZpiWbf5r6GJwfuSsYRsErA5YL", "comma-separated bootstrap peer multiaddrs")
-	p2pRendezvous := flag.String("p2p-rendezvous", "Lazyless", "libp2p mDNS rendezvous string")
+	p2pRendezvous := flag.String("p2p-rendezvous", "Assembler", "libp2p mDNS rendezvous string")
 	p2pMDNS := flag.Bool("p2p-mdns", true, "enable libp2p mDNS discovery")
 	p2pIdentityKey := flag.String("p2p-identity-key", filepath.Join("data", "p2p_identity.key"), "libp2p private key path for stable peer id")
 	p2pRecentPeers := flag.String("p2p-recent-peers", filepath.Join("data", "recent_peers.json"), "file path to persist recently connected peers")
 	localRPCEnable := flag.Bool("local-rpc-enable", true, "enable local unix-socket RPC for app p2p access")
-	localRPCSock := flag.String("local-rpc-sock", filepath.Join("data", "lazyless-p2p.sock"), "local rpc unix socket path")
+	localRPCSock := flag.String("local-rpc-sock", filepath.Join("data", "assembler-p2p.sock"), "local rpc unix socket path")
 	localRPCRecords := flag.String("local-rpc-records", filepath.Join("data", "p2p_messages.jsonl"), "local rpc message store path")
 	localRPCCursors := flag.String("local-rpc-cursors", filepath.Join("data", "p2p_cursors.json"), "local rpc cursor store path")
 	flag.Parse()
@@ -108,14 +108,14 @@ func main() {
 		log.Printf("local rpc enabled at unix://%s", *localRPCSock)
 	}
 
-	city, err := lazyless.New(pubsub)
+	city, err := assembler.New(pubsub)
 	if err != nil {
 		log.Fatal(err)
 	}
 	apiServer := api.NewServer(city)
 	apiServer.SetNodeInfoProvider(func() api.NodeInfo {
 		info := api.NodeInfo{
-			NodeName:  "Lazyless",
+			NodeName:  "Assembler",
 			HTTPAddr:  *addr,
 			Transport: *transport,
 			Bootstrap: mergeUnique(splitCSV(*p2pBootstrap), loadRecentPeers(*p2pRecentPeers)),
@@ -134,7 +134,7 @@ func main() {
 	webDir := filepath.Join("web")
 	mux.Handle("/", http.FileServer(http.Dir(webDir)))
 
-	log.Printf("Lazyless listening on %s", *addr)
+	log.Printf("Assembler listening on %s", *addr)
 	if err := http.ListenAndServe(*addr, mux); err != nil {
 		log.Fatal(err)
 	}

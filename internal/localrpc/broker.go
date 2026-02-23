@@ -59,7 +59,7 @@ type broker struct {
 	directSent     int64
 }
 
-const directProtocol = "/lazyless/localrpc/direct/1.0.0"
+const directProtocol = "/assembler/localrpc/direct/1.0.0"
 
 type directWire struct {
 	Topic   string `json:"topic"`

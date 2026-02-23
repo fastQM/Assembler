@@ -6,13 +6,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"ClawdCity/internal/lazyless"
+	"ClawdCity/internal/assembler"
 	"ClawdCity/internal/core/network"
 )
 
 func TestClawdCityInstallStartHealth(t *testing.T) {
 	pubsub := network.NewMemoryPubSub()
-	city, err := lazyless.New(pubsub)
+	city, err := assembler.New(pubsub)
 	if err != nil {
 		t.Fatalf("new city: %v", err)
 	}
@@ -20,7 +20,7 @@ func TestClawdCityInstallStartHealth(t *testing.T) {
 	mux := http.NewServeMux()
 	server.Register(mux)
 
-	marketReq := httptest.NewRequest(http.MethodGet, "/api/lazyless/market/apps", nil)
+	marketReq := httptest.NewRequest(http.MethodGet, "/api/assembler/market/apps", nil)
 	marketRec := httptest.NewRecorder()
 	mux.ServeHTTP(marketRec, marketReq)
 	if marketRec.Code != http.StatusOK {
@@ -30,21 +30,21 @@ func TestClawdCityInstallStartHealth(t *testing.T) {
 		t.Fatalf("social-web should be in market: %s", marketRec.Body.String())
 	}
 
-	installReq := httptest.NewRequest(http.MethodPost, "/api/lazyless/control/install", bytes.NewReader([]byte(`{"app_id":"social-web"}`)))
+	installReq := httptest.NewRequest(http.MethodPost, "/api/assembler/control/install", bytes.NewReader([]byte(`{"app_id":"social-web"}`)))
 	installRec := httptest.NewRecorder()
 	mux.ServeHTTP(installRec, installReq)
 	if installRec.Code != http.StatusOK {
 		t.Fatalf("install failed: %d %s", installRec.Code, installRec.Body.String())
 	}
 
-	startReq := httptest.NewRequest(http.MethodPost, "/api/lazyless/control/apps/social-web/start", nil)
+	startReq := httptest.NewRequest(http.MethodPost, "/api/assembler/control/apps/social-web/start", nil)
 	startRec := httptest.NewRecorder()
 	mux.ServeHTTP(startRec, startReq)
 	if startRec.Code != http.StatusOK {
 		t.Fatalf("start failed: %d %s", startRec.Code, startRec.Body.String())
 	}
 
-	healthReq := httptest.NewRequest(http.MethodGet, "/api/lazyless/control/apps/social-web/health", nil)
+	healthReq := httptest.NewRequest(http.MethodGet, "/api/assembler/control/apps/social-web/health", nil)
 	healthRec := httptest.NewRecorder()
 	mux.ServeHTTP(healthRec, healthReq)
 	if healthRec.Code != http.StatusOK {
@@ -54,7 +54,7 @@ func TestClawdCityInstallStartHealth(t *testing.T) {
 
 func TestClawdCityNodeEndpoint(t *testing.T) {
 	pubsub := network.NewMemoryPubSub()
-	city, err := lazyless.New(pubsub)
+	city, err := assembler.New(pubsub)
 	if err != nil {
 		t.Fatalf("new city: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestClawdCityNodeEndpoint(t *testing.T) {
 	mux := http.NewServeMux()
 	server.Register(mux)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/lazyless/node", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/assembler/node", nil)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
