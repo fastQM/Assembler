@@ -499,7 +499,7 @@ func runLogs(args []string) int {
 func loadConfig(path string) (runtimeConfig, error) {
 	def := runtimeConfig{
 		Transport:               "libp2p",
-		P2PListen:               []string{"/ip4/0.0.0.0/tcp/0"},
+		P2PListen:               []string{"/ip4/0.0.0.0/tcp/40001"},
 		P2PBootstrap:            []string{"/ip4/3.65.204.231/tcp/40001/p2p/12D3KooWAaYG182TYGF5GTfWu5CZpiWbf5r6GJwfuSsYRsErA5YL"},
 		P2PMDNS:                 true,
 		P2PKadDHT:               true,

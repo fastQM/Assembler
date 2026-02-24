@@ -1,7 +1,7 @@
 {
   "transport": "libp2p",
   "p2p_listen": [
-    "/ip4/0.0.0.0/tcp/0"
+    "/ip4/0.0.0.0/tcp/40001"
   ],
   "p2p_bootstrap": [
     "/ip4/3.65.204.231/tcp/40001/p2p/12D3KooWAaYG182TYGF5GTfWu5CZpiWbf5r6GJwfuSsYRsErA5YL"

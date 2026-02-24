@@ -57,6 +57,8 @@ type Libp2pPubSub struct {
 	kadDiscoveryQueryTimeout time.Duration
 	discoveryAllowApps       map[string]struct{}
 	discoveryStarted         map[string]struct{}
+	reconnectCancel          map[peer.ID]context.CancelFunc
+	notifiee                 *connNotifiee
 }
 
 func NewLibp2pPubSub(parent context.Context, opts Libp2pOptions) (*Libp2pPubSub, error) {
@@ -114,7 +116,10 @@ func NewLibp2pPubSub(parent context.Context, opts Libp2pOptions) (*Libp2pPubSub,
 		kadDiscoveryQueryTimeout: opts.KadDiscoveryQueryTimeout,
 		discoveryAllowApps:       make(map[string]struct{}),
 		discoveryStarted:         make(map[string]struct{}),
+		reconnectCancel:          make(map[peer.ID]context.CancelFunc),
 	}
+	p.notifiee = &connNotifiee{p: p}
+	h.Network().Notify(p.notifiee)
 	for _, appID := range opts.KadDiscoveryApps {
 		appID = strings.TrimSpace(appID)
 		if appID == "" {
@@ -256,7 +261,14 @@ func (p *Libp2pPubSub) Close() error {
 	if p.dht != nil {
 		_ = p.dht.Close()
 	}
+	if p.notifiee != nil {
+		p.host.Network().StopNotify(p.notifiee)
+	}
 	p.mu.Lock()
+	for _, cancel := range p.reconnectCancel {
+		cancel()
+	}
+	p.reconnectCancel = make(map[peer.ID]context.CancelFunc)
 	defer p.mu.Unlock()
 	for _, t := range p.topics {
 		_ = t.Close()
@@ -394,6 +406,115 @@ func (p *Libp2pPubSub) discoveryNamespace(appID string) string {
 		base = "assembler"
 	}
 	return base + ".app." + appID
+}
+
+func (p *Libp2pPubSub) startReconnect(pid peer.ID) {
+	if pid == "" || pid == p.host.ID() {
+		return
+	}
+	if len(p.host.Network().ConnsToPeer(pid)) > 0 {
+		return
+	}
+
+	p.mu.Lock()
+	if _, exists := p.reconnectCancel[pid]; exists {
+		p.mu.Unlock()
+		return
+	}
+	ctx, cancel := context.WithTimeout(p.ctx, 5*time.Minute)
+	p.reconnectCancel[pid] = cancel
+	p.mu.Unlock()
+
+	log.Printf("peer disconnected %s; start reconnect every 30s for up to 5m", pid)
+
+	go func() {
+		defer func() {
+			p.mu.Lock()
+			delete(p.reconnectCancel, pid)
+			p.mu.Unlock()
+			cancel()
+		}()
+
+		tryConnect := func() bool {
+			if p.ctx.Err() != nil || ctx.Err() != nil {
+				return true
+			}
+			if len(p.host.Network().ConnsToPeer(pid)) > 0 {
+				return true
+			}
+			addrs := p.host.Peerstore().Addrs(pid)
+			if len(addrs) == 0 {
+				return false
+			}
+			info := peer.AddrInfo{ID: pid, Addrs: addrs}
+			attemptCtx, attemptCancel := context.WithTimeout(ctx, 10*time.Second)
+			defer attemptCancel()
+			if err := p.host.Connect(attemptCtx, info); err != nil {
+				log.Printf("reconnect failed %s: %v", pid, err)
+				return false
+			}
+			log.Printf("reconnect success %s", pid)
+			return true
+		}
+
+		if tryConnect() {
+			return
+		}
+
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-p.ctx.Done():
+				return
+			case <-ctx.Done():
+				log.Printf("reconnect give up %s after 5m", pid)
+				return
+			case <-ticker.C:
+				if tryConnect() {
+					return
+				}
+			}
+		}
+	}()
+}
+
+func (p *Libp2pPubSub) stopReconnect(pid peer.ID) {
+	p.mu.Lock()
+	cancel, ok := p.reconnectCancel[pid]
+	if ok {
+		delete(p.reconnectCancel, pid)
+	}
+	p.mu.Unlock()
+	if ok {
+		cancel()
+	}
+}
+
+type connNotifiee struct {
+	p *Libp2pPubSub
+}
+
+func (n *connNotifiee) Listen(coreNetwork.Network, ma.Multiaddr)      {}
+func (n *connNotifiee) ListenClose(coreNetwork.Network, ma.Multiaddr) {}
+func (n *connNotifiee) OpenedStream(coreNetwork.Network, coreNetwork.Stream) {
+}
+func (n *connNotifiee) ClosedStream(coreNetwork.Network, coreNetwork.Stream) {
+}
+
+func (n *connNotifiee) Connected(_ coreNetwork.Network, c coreNetwork.Conn) {
+	n.p.stopReconnect(c.RemotePeer())
+}
+
+func (n *connNotifiee) Disconnected(_ coreNetwork.Network, c coreNetwork.Conn) {
+	pid := c.RemotePeer()
+	if pid == "" || pid == n.p.host.ID() {
+		return
+	}
+	if len(n.p.host.Network().ConnsToPeer(pid)) > 0 {
+		return
+	}
+	n.p.startReconnect(pid)
 }
 
 type mdnsNotifee struct {

@@ -18,7 +18,7 @@ import (
 
 func main() {
 	transport := flag.String("transport", "libp2p", "transport: memory|libp2p")
-	p2pListen := flag.String("p2p-listen", "/ip4/0.0.0.0/tcp/0", "comma-separated libp2p listen multiaddrs")
+	p2pListen := flag.String("p2p-listen", "/ip4/0.0.0.0/tcp/40001", "comma-separated libp2p listen multiaddrs")
 	p2pBootstrap := flag.String("p2p-bootstrap", "/ip4/3.65.204.231/tcp/40001/p2p/12D3KooWAaYG182TYGF5GTfWu5CZpiWbf5r6GJwfuSsYRsErA5YL", "comma-separated bootstrap peer multiaddrs")
 	p2pRendezvous := flag.String("p2p-rendezvous", "Assembler", "libp2p mDNS rendezvous string")
 	p2pMDNS := flag.Bool("p2p-mdns", true, "enable libp2p mDNS discovery")
