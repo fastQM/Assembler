@@ -213,6 +213,8 @@ func runStart(args []string) int {
 		cmd = exec.Command(daemonPath, serverArgs...)
 	} else {
 		cmd = exec.Command("go", append([]string{"run", "./cmd/assemblerd"}, serverArgs...)...)
+		// Force module mode so global GO111MODULE=off does not break daemon startup.
+		cmd.Env = append(os.Environ(), "GO111MODULE=on")
 	}
 	cmd.Dir = *workdir
 	if !*daemon {
@@ -241,7 +243,7 @@ func runStart(args []string) int {
 	pid = cmd.Process.Pid
 	started := time.Now().UTC()
 	if err := writePID(cfg.RunPIDFile, pid, started); err != nil {
-		_ = cmd.Process.Kill()
+		killProcessTree(pid, syscall.SIGKILL)
 		fmt.Printf("write pid file failed: %v\n", err)
 		return exitSpawnFailure
 	}
@@ -262,10 +264,20 @@ func runStart(args []string) int {
 		time.Sleep(300 * time.Millisecond)
 	}
 
-	_ = syscall.Kill(pid, syscall.SIGTERM)
+	killProcessTree(pid, syscall.SIGTERM)
 	_ = os.Remove(cfg.RunPIDFile)
 	fmt.Printf("start timeout after %s, stopped pid=%d\n", wait.String(), pid)
 	return exitStartTimeout
+}
+
+func killProcessTree(pid int, sig syscall.Signal) {
+	if pid <= 0 {
+		return
+	}
+	// Child is started as a new process group (Setpgid=true), so kill the group first.
+	if err := syscall.Kill(-pid, sig); err != nil {
+		_ = syscall.Kill(pid, sig)
+	}
 }
 
 func runStop(args []string) int {

@@ -20,11 +20,11 @@ It starts `cmd/assemblerd` in background, manages PID/log files, and provides li
 
 ```bash
 cd Assembler
-GO111MODULE=on go run ./cmd/assemblerctl start
-GO111MODULE=on go run ./cmd/assemblerctl status
-GO111MODULE=on go run ./cmd/assemblerctl rpc status
-GO111MODULE=on go run ./cmd/assemblerctl logs --lines 200 --follow=false
-GO111MODULE=on go run ./cmd/assemblerctl stop
+./assemblerctl start
+./assemblerctl status
+./assemblerctl rpc status
+./assemblerctl logs --lines 200 --follow=false
+./assemblerctl stop
 ```
 
 Log file is managed by daemon mode (default: `data/run/assembler.log`).
@@ -67,5 +67,5 @@ RPC service name is `P2P` (Go `net/rpc`):
 
 ```bash
 cd Assembler
-GO111MODULE=on go test ./...
+go test ./...
 ```
