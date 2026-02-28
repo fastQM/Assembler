@@ -156,6 +156,7 @@ func (c *Client) Stream(ctx context.Context, args SubscribeArgs) (<-chan StreamE
 		"app_id":      args.AppID,
 		"topics":      args.Topics,
 		"from_offset": args.FromOffset,
+		"live_only":   true,
 	}); err != nil {
 		_ = conn.Close()
 		return nil, nil, err

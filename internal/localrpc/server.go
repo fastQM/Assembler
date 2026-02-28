@@ -104,6 +104,7 @@ type streamSubscribeRequest struct {
 	AppID      string   `json:"app_id"`
 	Topics     []string `json:"topics"`
 	FromOffset int64    `json:"from_offset"`
+	LiveOnly   bool     `json:"live_only"`
 }
 
 type streamEvent struct {
@@ -201,7 +202,7 @@ func (s *Server) serveStreamConn(conn net.Conn) {
 		return
 	}
 
-	subID, err := s.broker.subscribe(req.AppID, req.Topics, req.FromOffset)
+	subID, err := s.broker.subscribeWithMode(req.AppID, req.Topics, req.FromOffset, !req.LiveOnly)
 	if err != nil {
 		_ = enc.Encode(streamEvent{Type: "error", Error: err.Error()})
 		return

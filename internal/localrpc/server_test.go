@@ -82,6 +82,40 @@ func TestTopicAcl(t *testing.T) {
 	}
 }
 
+func TestSubscribeLiveOnlySkipsStoredHistory(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	store, err := newHistoryStore(filepath.Join(dir, "messages.jsonl"), filepath.Join(dir, "cursors.json"))
+	if err != nil {
+		t.Fatalf("new history store: %v", err)
+	}
+	b := newBroker(network.NewMemoryPubSub(), store, nil)
+	api := &API{b: b}
+
+	var pubReply PublishReply
+	if err := api.Publish(PublishArgs{AppID: "demo", Topic: "app.demo.chat", Payload: []byte("before-live-sub")}, &pubReply); err != nil {
+		t.Fatalf("publish rpc: %v", err)
+	}
+	if !pubReply.Accepted {
+		t.Fatalf("publish rejected: %s", pubReply.Error)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	subID, err := b.subscribeWithMode("demo", []string{"app.demo.chat"}, 0, false)
+	if err != nil {
+		t.Fatalf("subscribe live-only: %v", err)
+	}
+	defer b.unsubscribe("demo", subID)
+
+	msg, ok, err := b.next("demo", subID, 20*time.Millisecond)
+	if err != nil {
+		t.Fatalf("next: %v", err)
+	}
+	if ok {
+		t.Fatalf("expected no replayed history, got %q", string(msg.Payload))
+	}
+}
+
 func TestStreamPushDeliversMessage(t *testing.T) {
 	t.Parallel()
 	dir, err := os.MkdirTemp("/tmp", "assembler-localrpc-stream-*")

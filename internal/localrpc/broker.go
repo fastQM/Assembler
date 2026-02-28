@@ -105,6 +105,10 @@ func (b *broker) publish(appID, topic string, payload []byte, headers map[string
 }
 
 func (b *broker) subscribe(appID string, topics []string, fromOffset int64) (string, error) {
+	return b.subscribeWithMode(appID, topics, fromOffset, true)
+}
+
+func (b *broker) subscribeWithMode(appID string, topics []string, fromOffset int64, includeHistory bool) (string, error) {
 	if appID == "" {
 		return "", errors.New("app_id required")
 	}
@@ -125,9 +129,11 @@ func (b *broker) subscribe(appID string, topics []string, fromOffset int64) (str
 			return "", err
 		}
 		s.topics[topic] = struct{}{}
-		history := b.store.list(topic, fromOffset, 200)
-		for _, rec := range history {
-			s.queue <- rec
+		if includeHistory {
+			history := b.store.list(topic, fromOffset, 200)
+			for _, rec := range history {
+				s.queue <- rec
+			}
 		}
 	}
 	b.mu.Lock()
