@@ -73,10 +73,10 @@ RPC service name is `P2P` (Go `net/rpc`):
 
 - `P2P.Publish(PublishArgs) -> PublishReply`
 - `P2P.Subscribe(SubscribeArgs) -> SubscribeReply`
-- `P2P.Pull(PullArgs) -> PullReply` (long-poll style delivery)
-- `P2P.Ack(AckArgs) -> AckReply`
 - `P2P.FetchHistory(HistoryArgs) -> HistoryReply`
 - `P2P.GetStatus(StatusArgs) -> StatusReply`
+
+Realtime delivery is provided by the stream socket `<rpc_socket>.stream` (JSON events).
 
 ## Test
 

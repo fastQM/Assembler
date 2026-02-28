@@ -1,13 +1,20 @@
 package localrpc
 
 import (
+	"encoding/json"
+	"errors"
+	"net"
+	"net/rpc"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"Assembler/internal/core/network"
 )
 
-func TestPublishSubscribeHistoryAndAck(t *testing.T) {
+func TestPublishSubscribeAndHistory(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	store, err := newHistoryStore(filepath.Join(dir, "messages.jsonl"), filepath.Join(dir, "cursors.json"))
@@ -33,33 +40,15 @@ func TestPublishSubscribeHistoryAndAck(t *testing.T) {
 		t.Fatalf("publish rejected: %s", pubReply.Error)
 	}
 
-	var pullReply PullReply
-	if err := api.Pull(PullArgs{AppID: "demo", SubscriptionID: subReply.SubscriptionID, MaxItems: 10, WaitMillis: 50}, &pullReply); err != nil {
-		t.Fatalf("pull rpc: %v", err)
+	got, ok, err := b.next("demo", subReply.SubscriptionID, 100*time.Millisecond)
+	if err != nil {
+		t.Fatalf("broker next: %v", err)
 	}
-	if pullReply.Error != "" {
-		t.Fatalf("pull failed: %s", pullReply.Error)
+	if !ok {
+		t.Fatalf("expected streamed message")
 	}
-	if len(pullReply.Messages) == 0 {
-		t.Fatalf("expected at least one message")
-	}
-
-	first := pullReply.Messages[0]
-	if string(first.Payload) != "hello" {
-		t.Fatalf("unexpected payload: %q", string(first.Payload))
-	}
-
-	var ackReply AckReply
-	if err := api.Ack(AckArgs{
-		AppID:          "demo",
-		SubscriptionID: subReply.SubscriptionID,
-		Topic:          "app.demo.chat",
-		Offset:         first.Offset,
-	}, &ackReply); err != nil {
-		t.Fatalf("ack rpc: %v", err)
-	}
-	if !ackReply.OK {
-		t.Fatalf("ack failed: %s", ackReply.Error)
+	if string(got.Payload) != "hello" {
+		t.Fatalf("unexpected payload: %q", string(got.Payload))
 	}
 
 	var histReply HistoryReply
@@ -90,5 +79,88 @@ func TestTopicAcl(t *testing.T) {
 	}
 	if reply.Error == "" {
 		t.Fatalf("expected acl error")
+	}
+}
+
+func TestStreamPushDeliversMessage(t *testing.T) {
+	t.Parallel()
+	dir, err := os.MkdirTemp("/tmp", "assembler-localrpc-stream-*")
+	if err != nil {
+		t.Fatalf("mktemp: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	socket := filepath.Join(dir, "p2p.sock")
+	srv, err := NewServer(Config{
+		SocketPath:  socket,
+		RecordsPath: filepath.Join(dir, "messages.jsonl"),
+		CursorPath:  filepath.Join(dir, "cursors.json"),
+	}, network.NewMemoryPubSub(), nil)
+	if err != nil {
+		t.Fatalf("new server: %v", err)
+	}
+	if err := srv.Start(); err != nil {
+		if errors.Is(err, os.ErrPermission) || strings.Contains(strings.ToLower(err.Error()), "operation not permitted") {
+			t.Skipf("skipping stream socket test in restricted environment: %v", err)
+		}
+		t.Fatalf("start server: %v", err)
+	}
+	defer srv.Close()
+
+	streamConn, err := net.Dial("unix", socket+".stream")
+	if err != nil {
+		t.Fatalf("dial stream: %v", err)
+	}
+	defer streamConn.Close()
+
+	enc := json.NewEncoder(streamConn)
+	dec := json.NewDecoder(streamConn)
+	if err := enc.Encode(streamSubscribeRequest{
+		AppID:      "demo",
+		Topics:     []string{"app.demo.chat"},
+		FromOffset: 0,
+	}); err != nil {
+		t.Fatalf("encode subscribe: %v", err)
+	}
+	var ready streamEvent
+	if err := dec.Decode(&ready); err != nil {
+		t.Fatalf("decode ready: %v", err)
+	}
+	if ready.Type != "ready" {
+		t.Fatalf("expected ready, got %q (%s)", ready.Type, ready.Error)
+	}
+
+	rpcConn, err := net.Dial("unix", socket)
+	if err != nil {
+		t.Fatalf("dial rpc: %v", err)
+	}
+	defer rpcConn.Close()
+	client := rpc.NewClient(rpcConn)
+	defer client.Close()
+
+	var pubReply PublishReply
+	if err := client.Call("P2P.Publish", PublishArgs{
+		AppID:   "demo",
+		Topic:   "app.demo.chat",
+		Payload: []byte("hello-stream"),
+	}, &pubReply); err != nil {
+		t.Fatalf("rpc publish: %v", err)
+	}
+	if !pubReply.Accepted {
+		t.Fatalf("publish rejected: %s", pubReply.Error)
+	}
+
+	_ = streamConn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	for {
+		var evt streamEvent
+		if err := dec.Decode(&evt); err != nil {
+			t.Fatalf("decode stream event: %v", err)
+		}
+		if evt.Type != "message" {
+			continue
+		}
+		if string(evt.Message.Payload) != "hello-stream" {
+			t.Fatalf("unexpected payload: %q", string(evt.Message.Payload))
+		}
+		return
 	}
 }

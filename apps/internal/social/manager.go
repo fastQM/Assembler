@@ -118,6 +118,7 @@ type Manager struct {
 
 	cfg Config
 	rpc *localrpcclient.Client
+	db  stateStore
 
 	profile         *Profile
 	identity        *Identity
@@ -131,18 +132,21 @@ type Manager struct {
 	listeners       map[int]chan string
 	nextListenerID  int
 	nodePeerID      string
-
-	subscriptionID string
-	cancel         context.CancelFunc
+	cancel          context.CancelFunc
 }
 
 func NewManager(cfg Config) (*Manager, error) {
 	if cfg.DataDir == "" {
 		cfg.DataDir = filepath.Join("data", "social")
 	}
+	db, err := newStateStore(filepath.Join(cfg.DataDir, "social.db"))
+	if err != nil {
+		return nil, err
+	}
 	m := &Manager{
 		cfg:             cfg,
 		rpc:             localrpcclient.New(cfg.RPCSocketPath),
+		db:              db,
 		knownUsers:      make(map[string]KnownUser),
 		requests:        make(map[string]FriendRequest),
 		friends:         make(map[string]Friend),
@@ -1003,7 +1007,7 @@ func (m *Manager) startLoopLocked() {
 
 func (m *Manager) loop(ctx context.Context) {
 	for {
-		if err := m.ensureSubscribed(); err != nil {
+		if err := m.ensureStreamSubscribed(); err != nil {
 			select {
 			case <-ctx.Done():
 				return
@@ -1011,46 +1015,22 @@ func (m *Manager) loop(ctx context.Context) {
 			}
 			continue
 		}
-		rep, err := m.rpc.Pull(localrpcclient.PullArgs{AppID: AppID, SubscriptionID: m.subscriptionID, MaxItems: 100, WaitMillis: 2000})
-		if err != nil {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(2 * time.Second):
-			}
+		if ok := m.loopStreamOnce(ctx); ok {
 			continue
-		}
-		if rep.Error != "" {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(2 * time.Second):
-			}
-			continue
-		}
-		for _, msg := range rep.Messages {
-			if !m.shouldProcess(msg.Topic, msg.Offset) {
-				continue
-			}
-			m.processRecord(msg)
-			m.commitCursor(msg.Topic, msg.Offset)
 		}
 		select {
 		case <-ctx.Done():
 			return
-		default:
+		case <-time.After(2 * time.Second):
 		}
 	}
 }
 
-func (m *Manager) ensureSubscribed() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.subscriptionID != "" {
-		return nil
-	}
-	if m.profile == nil {
-		return errors.New("profile missing")
+func (m *Manager) loopStreamOnce(ctx context.Context) bool {
+	m.mu.RLock()
+	topics := []string{topicPresence}
+	if m.profile != nil {
+		topics = append(topics, inboxTopic(m.profile.UserID))
 	}
 	from := int64(0)
 	if len(m.cursors) > 0 {
@@ -1064,15 +1044,48 @@ func (m *Manager) ensureSubscribed() error {
 			from = 0
 		}
 	}
-	topics := []string{topicPresence, inboxTopic(m.profile.UserID)}
-	rep, err := m.rpc.Subscribe(localrpcclient.SubscribeArgs{AppID: AppID, Topics: topics, FromOffset: from})
+	m.mu.RUnlock()
+
+	events, cancel, err := m.rpc.Stream(ctx, localrpcclient.SubscribeArgs{
+		AppID:      AppID,
+		Topics:     topics,
+		FromOffset: from,
+	})
 	if err != nil {
-		return err
+		return false
 	}
-	if rep.Error != "" {
-		return errors.New(rep.Error)
+	defer cancel()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return true
+		case evt, ok := <-events:
+			if !ok {
+				return false
+			}
+			if evt.Type == "error" {
+				return false
+			}
+			if evt.Type != "message" {
+				continue
+			}
+			msg := evt.Message
+			if !m.shouldProcess(msg.Topic, msg.Offset) {
+				continue
+			}
+			m.processRecord(msg)
+			m.commitCursor(msg.Topic, msg.Offset)
+		}
 	}
-	m.subscriptionID = rep.SubscriptionID
+}
+
+func (m *Manager) ensureStreamSubscribed() error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.profile == nil {
+		return errors.New("profile missing")
+	}
 	return nil
 }
 
@@ -1085,16 +1098,8 @@ func (m *Manager) shouldProcess(topic string, offset int64) bool {
 func (m *Manager) commitCursor(topic string, offset int64) {
 	m.mu.Lock()
 	m.cursors[topic] = offset
-	subID := m.subscriptionID
-	appUser := ""
-	if m.profile != nil {
-		appUser = m.profile.UserID
-	}
 	_ = m.saveStateLocked()
 	m.mu.Unlock()
-	if subID != "" && appUser != "" {
-		_, _ = m.rpc.Ack(localrpcclient.AckArgs{AppID: AppID, SubscriptionID: subID, Topic: topic, Offset: offset})
-	}
 }
 
 func (m *Manager) processRecord(rec localrpcclient.MessageRecord) {
@@ -1366,18 +1371,47 @@ type persistedState struct {
 	DMs             map[string][]DirectMessage `json:"dms"`
 	UsedInviteNonce map[string]time.Time       `json:"used_invite_nonce"`
 	Cursors         map[string]int64           `json:"cursors"`
+	SeenMessageIDs  map[string]struct{}        `json:"seen_message_ids"`
 }
 
 func (m *Manager) stateFile() string { return filepath.Join(m.cfg.DataDir, "state.json") }
 
 func (m *Manager) loadState() error {
-	b, err := os.ReadFile(m.stateFile())
+	ps, ok, err := m.db.Load()
 	if err != nil {
 		return err
 	}
-	var ps persistedState
-	if err := json.Unmarshal(b, &ps); err != nil {
-		return err
+	if !ok {
+		legacy, lerr := m.loadLegacyState()
+		if lerr != nil {
+			return nil
+		}
+		if legacy != nil {
+			m.profile = legacy.Profile
+			if legacy.KnownUsers != nil {
+				m.knownUsers = legacy.KnownUsers
+			}
+			if legacy.Requests != nil {
+				m.requests = legacy.Requests
+			}
+			if legacy.Friends != nil {
+				m.friends = legacy.Friends
+			}
+			if legacy.DMs != nil {
+				m.dms = legacy.DMs
+			}
+			if legacy.UsedInviteNonce != nil {
+				m.usedInviteNonce = legacy.UsedInviteNonce
+			}
+			if legacy.Cursors != nil {
+				m.cursors = legacy.Cursors
+			}
+			if legacy.SeenMessageIDs != nil {
+				m.seenMessageIDs = legacy.SeenMessageIDs
+			}
+			_ = m.saveStateLocked()
+		}
+		return nil
 	}
 	m.profile = ps.Profile
 	if ps.KnownUsers != nil {
@@ -1398,6 +1432,9 @@ func (m *Manager) loadState() error {
 	if ps.Cursors != nil {
 		m.cursors = ps.Cursors
 	}
+	if ps.SeenMessageIDs != nil {
+		m.seenMessageIDs = ps.SeenMessageIDs
+	}
 	return nil
 }
 
@@ -1410,16 +1447,25 @@ func (m *Manager) saveStateLocked() error {
 		DMs:             m.dms,
 		UsedInviteNonce: m.usedInviteNonce,
 		Cursors:         m.cursors,
+		SeenMessageIDs:  m.seenMessageIDs,
 	}
-	b, err := json.MarshalIndent(ps, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(m.stateFile(), b, 0o600); err != nil {
+	if err := m.db.Save(ps); err != nil {
 		return err
 	}
 	m.emitEventLocked("state")
 	return nil
+}
+
+func (m *Manager) loadLegacyState() (*persistedState, error) {
+	b, err := os.ReadFile(m.stateFile())
+	if err != nil {
+		return nil, err
+	}
+	var ps persistedState
+	if err := json.Unmarshal(b, &ps); err != nil {
+		return nil, err
+	}
+	return &ps, nil
 }
 
 func (m *Manager) conversationsSnapshotLocked() map[string][]DirectMessage {

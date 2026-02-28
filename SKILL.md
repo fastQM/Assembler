@@ -65,11 +65,11 @@ RPC service name: `P2P`
 Available methods:
 - `P2P.Publish`
 - `P2P.Subscribe`
-- `P2P.Pull`
-- `P2P.Ack`
 - `P2P.FetchHistory`
 - `P2P.GetStatus`
 - `P2P.SendDirect`
+
+Realtime delivery uses stream socket `<rpc_socket>.stream` with JSON events.
 
 ## Health Check Workflow
 1. Verify process is running.

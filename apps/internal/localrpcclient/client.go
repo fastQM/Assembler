@@ -1,8 +1,12 @@
 package localrpcclient
 
 import (
+	"bufio"
+	"context"
+	"encoding/json"
 	"net"
 	"net/rpc"
+	"sync"
 	"time"
 )
 
@@ -40,30 +44,6 @@ type SubscribeArgs struct {
 type SubscribeReply struct {
 	SubscriptionID string
 	Error          string
-}
-
-type PullArgs struct {
-	AppID          string
-	SubscriptionID string
-	MaxItems       int
-	WaitMillis     int
-}
-
-type PullReply struct {
-	Messages []MessageRecord
-	Error    string
-}
-
-type AckArgs struct {
-	AppID          string
-	SubscriptionID string
-	Topic          string
-	Offset         int64
-}
-
-type AckReply struct {
-	OK    bool
-	Error string
 }
 
 type HistoryArgs struct {
@@ -109,6 +89,13 @@ type SendDirectReply struct {
 	Error string
 }
 
+type StreamEvent struct {
+	Type           string        `json:"type"`
+	SubscriptionID string        `json:"subscription_id,omitempty"`
+	Message        MessageRecord `json:"message,omitempty"`
+	Error          string        `json:"error,omitempty"`
+}
+
 type Client struct {
 	socketPath string
 	timeout    time.Duration
@@ -141,18 +128,6 @@ func (c *Client) Subscribe(args SubscribeArgs) (SubscribeReply, error) {
 	return out, err
 }
 
-func (c *Client) Pull(args PullArgs) (PullReply, error) {
-	var out PullReply
-	err := c.call("P2P.Pull", args, &out)
-	return out, err
-}
-
-func (c *Client) Ack(args AckArgs) (AckReply, error) {
-	var out AckReply
-	err := c.call("P2P.Ack", args, &out)
-	return out, err
-}
-
 func (c *Client) FetchHistory(args HistoryArgs) (HistoryReply, error) {
 	var out HistoryReply
 	err := c.call("P2P.FetchHistory", args, &out)
@@ -169,4 +144,58 @@ func (c *Client) SendDirect(args SendDirectArgs) (SendDirectReply, error) {
 	var out SendDirectReply
 	err := c.call("P2P.SendDirect", args, &out)
 	return out, err
+}
+
+func (c *Client) Stream(ctx context.Context, args SubscribeArgs) (<-chan StreamEvent, func(), error) {
+	conn, err := net.DialTimeout("unix", c.socketPath+".stream", c.timeout)
+	if err != nil {
+		return nil, nil, err
+	}
+	enc := json.NewEncoder(conn)
+	if err := enc.Encode(map[string]any{
+		"app_id":      args.AppID,
+		"topics":      args.Topics,
+		"from_offset": args.FromOffset,
+	}); err != nil {
+		_ = conn.Close()
+		return nil, nil, err
+	}
+
+	events := make(chan StreamEvent, 64)
+	done := make(chan struct{})
+	var once sync.Once
+	cancel := func() {
+		once.Do(func() {
+			_ = conn.Close()
+			close(done)
+		})
+	}
+
+	go func() {
+		defer close(events)
+		defer cancel()
+		dec := json.NewDecoder(bufio.NewReader(conn))
+		for {
+			var evt StreamEvent
+			if err := dec.Decode(&evt); err != nil {
+				return
+			}
+			select {
+			case events <- evt:
+			case <-done:
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	go func() {
+		select {
+		case <-ctx.Done():
+			cancel()
+		case <-done:
+		}
+	}()
+	return events, cancel, nil
 }

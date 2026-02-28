@@ -1,6 +1,8 @@
 package localrpc
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/rpc"
@@ -12,14 +14,16 @@ import (
 )
 
 type Config struct {
-	SocketPath  string
-	RecordsPath string
-	CursorPath  string
+	SocketPath       string
+	StreamSocketPath string
+	RecordsPath      string
+	CursorPath       string
 }
 
 type Server struct {
 	cfg    Config
 	ln     net.Listener
+	sln    net.Listener
 	rpcSrv *rpc.Server
 	broker *broker
 }
@@ -51,30 +55,6 @@ type SubscribeArgs struct {
 type SubscribeReply struct {
 	SubscriptionID string
 	Error          string
-}
-
-type PullArgs struct {
-	AppID          string
-	SubscriptionID string
-	MaxItems       int
-	WaitMillis     int
-}
-
-type PullReply struct {
-	Messages []MessageRecord
-	Error    string
-}
-
-type AckArgs struct {
-	AppID          string
-	SubscriptionID string
-	Topic          string
-	Offset         int64
-}
-
-type AckReply struct {
-	OK    bool
-	Error string
 }
 
 type HistoryArgs struct {
@@ -120,6 +100,19 @@ type SendDirectReply struct {
 	Error string
 }
 
+type streamSubscribeRequest struct {
+	AppID      string   `json:"app_id"`
+	Topics     []string `json:"topics"`
+	FromOffset int64    `json:"from_offset"`
+}
+
+type streamEvent struct {
+	Type           string        `json:"type"`
+	SubscriptionID string        `json:"subscription_id,omitempty"`
+	Message        MessageRecord `json:"message,omitempty"`
+	Error          string        `json:"error,omitempty"`
+}
+
 func NewServer(cfg Config, pubsub network.PubSub, statusFn statusProvider) (*Server, error) {
 	store, err := newHistoryStore(cfg.RecordsPath, cfg.CursorPath)
 	if err != nil {
@@ -137,16 +130,30 @@ func (s *Server) Start() error {
 	if err := os.MkdirAll(filepath.Dir(s.cfg.SocketPath), 0o755); err != nil {
 		return err
 	}
+	if s.cfg.StreamSocketPath == "" {
+		s.cfg.StreamSocketPath = s.cfg.SocketPath + ".stream"
+	}
 	_ = os.Remove(s.cfg.SocketPath)
+	_ = os.Remove(s.cfg.StreamSocketPath)
 	ln, err := net.Listen("unix", s.cfg.SocketPath)
 	if err != nil {
 		return err
 	}
+	sln, err := net.Listen("unix", s.cfg.StreamSocketPath)
+	if err != nil {
+		_ = ln.Close()
+		return err
+	}
 	s.ln = ln
+	s.sln = sln
 	if err := os.Chmod(s.cfg.SocketPath, 0o600); err != nil {
 		return err
 	}
+	if err := os.Chmod(s.cfg.StreamSocketPath, 0o600); err != nil {
+		return err
+	}
 	go s.acceptLoop()
+	go s.acceptStreamLoop()
 	return nil
 }
 
@@ -155,7 +162,11 @@ func (s *Server) Close() error {
 	if s.ln != nil {
 		_ = s.ln.Close()
 	}
+	if s.sln != nil {
+		_ = s.sln.Close()
+	}
 	_ = os.Remove(s.cfg.SocketPath)
+	_ = os.Remove(s.cfg.StreamSocketPath)
 	return nil
 }
 
@@ -166,6 +177,56 @@ func (s *Server) acceptLoop() {
 			return
 		}
 		go s.rpcSrv.ServeConn(conn)
+	}
+}
+
+func (s *Server) acceptStreamLoop() {
+	for {
+		conn, err := s.sln.Accept()
+		if err != nil {
+			return
+		}
+		go s.serveStreamConn(conn)
+	}
+}
+
+func (s *Server) serveStreamConn(conn net.Conn) {
+	defer conn.Close()
+	dec := json.NewDecoder(bufio.NewReader(conn))
+	enc := json.NewEncoder(conn)
+
+	var req streamSubscribeRequest
+	if err := dec.Decode(&req); err != nil {
+		_ = enc.Encode(streamEvent{Type: "error", Error: "invalid subscribe request"})
+		return
+	}
+
+	subID, err := s.broker.subscribe(req.AppID, req.Topics, req.FromOffset)
+	if err != nil {
+		_ = enc.Encode(streamEvent{Type: "error", Error: err.Error()})
+		return
+	}
+	defer s.broker.unsubscribe(req.AppID, subID)
+
+	if err := enc.Encode(streamEvent{Type: "ready", SubscriptionID: subID}); err != nil {
+		return
+	}
+
+	for {
+		msg, ok, err := s.broker.next(req.AppID, subID, 30*time.Second)
+		if err != nil {
+			_ = enc.Encode(streamEvent{Type: "error", Error: err.Error()})
+			return
+		}
+		if !ok {
+			if err := enc.Encode(streamEvent{Type: "heartbeat"}); err != nil {
+				return
+			}
+			continue
+		}
+		if err := enc.Encode(streamEvent{Type: "message", Message: msg}); err != nil {
+			return
+		}
 	}
 }
 
@@ -188,29 +249,6 @@ func (a *API) Subscribe(args SubscribeArgs, reply *SubscribeReply) error {
 		return nil
 	}
 	reply.SubscriptionID = subID
-	return nil
-}
-
-func (a *API) Pull(args PullArgs, reply *PullReply) error {
-	wait := time.Duration(args.WaitMillis) * time.Millisecond
-	if wait > 30*time.Second {
-		wait = 30 * time.Second
-	}
-	items, err := a.b.pull(args.AppID, args.SubscriptionID, args.MaxItems, wait)
-	if err != nil {
-		reply.Error = err.Error()
-		return nil
-	}
-	reply.Messages = items
-	return nil
-}
-
-func (a *API) Ack(args AckArgs, reply *AckReply) error {
-	if err := a.b.ack(args.AppID, args.SubscriptionID, args.Topic, args.Offset); err != nil {
-		reply.Error = err.Error()
-		return nil
-	}
-	reply.OK = true
 	return nil
 }
 

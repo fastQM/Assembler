@@ -136,49 +136,31 @@ func (b *broker) subscribe(appID string, topics []string, fromOffset int64) (str
 	return s.id, nil
 }
 
-func (b *broker) pull(appID, subscriptionID string, maxItems int, wait time.Duration) ([]MessageRecord, error) {
+func (b *broker) next(appID, subscriptionID string, wait time.Duration) (MessageRecord, bool, error) {
 	sub, err := b.getSub(appID, subscriptionID)
 	if err != nil {
-		return nil, err
+		return MessageRecord{}, false, err
 	}
-	if maxItems <= 0 {
-		maxItems = 50
-	}
-	if maxItems > 500 {
-		maxItems = 500
-	}
-
-	items := make([]MessageRecord, 0, maxItems)
-	if wait > 0 {
+	if wait <= 0 {
 		select {
-		case msg := <-sub.queue:
-			items = append(items, msg)
-		case <-time.After(wait):
-			return items, nil
-		}
-	}
-	for len(items) < maxItems {
-		select {
-		case msg := <-sub.queue:
-			items = append(items, msg)
+		case msg, ok := <-sub.queue:
+			if !ok {
+				return MessageRecord{}, false, ErrSubscriptionGone
+			}
+			return msg, true, nil
 		default:
-			return items, nil
+			return MessageRecord{}, false, nil
 		}
 	}
-	return items, nil
-}
-
-func (b *broker) ack(appID, subscriptionID, topic string, offset int64) error {
-	if err := validateTopic(appID, topic); err != nil {
-		return err
+	select {
+	case msg, ok := <-sub.queue:
+		if !ok {
+			return MessageRecord{}, false, ErrSubscriptionGone
+		}
+		return msg, true, nil
+	case <-time.After(wait):
+		return MessageRecord{}, false, nil
 	}
-	if _, err := b.getSub(appID, subscriptionID); err != nil {
-		return err
-	}
-	if offset <= 0 {
-		return errors.New("offset must be > 0")
-	}
-	return b.store.saveCursor(appID, subscriptionID, topic, offset)
 }
 
 func (b *broker) fetchHistory(appID, topic string, fromOffset int64, limit int) ([]MessageRecord, error) {
@@ -249,6 +231,17 @@ func (b *broker) getSub(appID, subscriptionID string) (*subscription, error) {
 		return nil, ErrSubscriptionGone
 	}
 	return sub, nil
+}
+
+func (b *broker) unsubscribe(appID, subscriptionID string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	sub, ok := b.subs[subscriptionID]
+	if !ok || sub.appID != appID {
+		return
+	}
+	delete(b.subs, subscriptionID)
+	close(sub.queue)
 }
 
 func (b *broker) ensureTopicReader(appID, topic string) error {
