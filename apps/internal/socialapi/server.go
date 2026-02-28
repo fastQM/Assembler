@@ -198,14 +198,12 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		TargetUserID string `json:"target_user_id"`
 		Message      string `json:"message"`
-		WalletAddr   string `json:"wallet_address"`
-		HelloSig     string `json:"hello_sig"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
 		return
 	}
-	if err := s.m.SendFriendRequest(req.TargetUserID, req.Message, "discover", req.WalletAddr, req.HelloSig); err != nil {
+	if err := s.m.SendFriendRequest(req.TargetUserID, req.Message, "discover"); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -251,16 +249,14 @@ func (s *Server) handleRequestByInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Token      string `json:"token"`
-		Message    string `json:"message"`
-		WalletAddr string `json:"wallet_address"`
-		HelloSig   string `json:"hello_sig"`
+		Token   string `json:"token"`
+		Message string `json:"message"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json")
 		return
 	}
-	if err := s.m.SendFriendRequestByInvite(req.Token, req.Message, req.WalletAddr, req.HelloSig); err != nil {
+	if err := s.m.SendFriendRequestByInvite(req.Token, req.Message); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}

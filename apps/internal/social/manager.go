@@ -20,10 +20,7 @@ import (
 	"time"
 
 	"Assembler-Apps/internal/localrpcclient"
-	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/curve25519"
 )
@@ -33,7 +30,6 @@ const (
 	topicPresence        = "app.social.v1.global.presence"
 	defaultInviteTTL     = 24 * time.Hour
 	defaultPresenceEvery = 30 * time.Second
-	walletChallenge      = "Hello"
 )
 
 type Settings struct {
@@ -326,25 +322,11 @@ func (m *Manager) SubscribeEvents() (<-chan string, func()) {
 	return ch, cancel
 }
 
-func (m *Manager) SendFriendRequest(targetUserID, message, method, walletAddr, helloSig string) error {
+func (m *Manager) SendFriendRequest(targetUserID, message, method string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.profile == nil || m.identity == nil {
 		return errors.New("not initialized")
-	}
-	walletAddr = strings.TrimSpace(walletAddr)
-	helloSig = strings.TrimSpace(helloSig)
-	useWalletSig := walletAddr != "" || helloSig != ""
-	if useWalletSig {
-		if !common.IsHexAddress(walletAddr) {
-			return errors.New("invalid wallet address")
-		}
-		if helloSig == "" {
-			return errors.New("missing wallet signature")
-		}
-		if !verifyWalletChallenge(walletAddr, helloSig) {
-			return errors.New("invalid wallet signature")
-		}
 	}
 	target, ok := m.knownUsers[targetUserID]
 	if !ok {
@@ -356,9 +338,7 @@ func (m *Manager) SendFriendRequest(targetUserID, message, method, walletAddr, h
 		FromUserID:        m.profile.UserID,
 		ToUserID:          targetUserID,
 		FromName:          m.profile.Username,
-		WalletAddress:     strings.ToLower(walletAddr),
-		HelloSignature:    helloSig,
-		SignatureVerified: useWalletSig,
+		SignatureVerified: true,
 		Message:           message,
 		Method:            method,
 		Status:            "pending_out",
@@ -374,10 +354,6 @@ func (m *Manager) SendFriendRequest(targetUserID, message, method, walletAddr, h
 		"message":      message,
 		"method":       method,
 		"created_at":   req.CreatedAt.Format(time.RFC3339Nano),
-	}
-	if useWalletSig {
-		payload["wallet_address"] = strings.ToLower(walletAddr)
-		payload["hello_sig"] = helloSig
 	}
 	if err := m.publishSecureLocked(inboxTopic(targetUserID), target.BoxPublicKey, payload); err != nil {
 		return err
@@ -522,7 +498,7 @@ func (m *Manager) CreateInviteLink() (string, error) {
 	return token, nil
 }
 
-func (m *Manager) SendFriendRequestByInvite(token, message, walletAddr, helloSig string) error {
+func (m *Manager) SendFriendRequestByInvite(token, message string) error {
 	payload, err := parseInvite(token)
 	if err != nil {
 		return err
@@ -548,7 +524,7 @@ func (m *Manager) SendFriendRequestByInvite(token, message, walletAddr, helloSig
 	m.knownUsers[userID] = KnownUser{UserID: userID, PeerID: asString(payload["peer_id"]), Username: asString(payload["username"]), SignPublicKey: asString(payload["sign_pub"]), BoxPublicKey: boxPub, LastSeenAt: time.Now().UTC()}
 	_ = m.saveStateLocked()
 	m.mu.Unlock()
-	return m.SendFriendRequest(userID, message, "invite", walletAddr, helloSig)
+	return m.SendFriendRequest(userID, message, "invite")
 }
 
 func parseInvite(token string) (map[string]any, error) {
@@ -1231,18 +1207,9 @@ func (m *Manager) handleSecure(raw map[string]any) {
 				return
 			}
 		}
-		walletAddr := strings.ToLower(strings.TrimSpace(asString(body["wallet_address"])))
-		helloSig := strings.TrimSpace(asString(body["hello_sig"]))
-		useWalletSig := walletAddr != "" || helloSig != ""
-		if useWalletSig && !verifyWalletChallenge(walletAddr, helloSig) {
-			return
-		}
 		fromName := strings.TrimSpace(asString(body["from_name"]))
 		if fromName == "" {
 			fromName = fromUser
-		}
-		if useWalletSig && strings.EqualFold(fromName, walletAddr) {
-			fromName = walletAddr
 		}
 		reqID := asString(body["request_id"])
 		if reqID == "" {
@@ -1257,9 +1224,7 @@ func (m *Manager) handleSecure(raw map[string]any) {
 			FromUserID:        fromUser,
 			ToUserID:          myUser,
 			FromName:          fromName,
-			WalletAddress:     walletAddr,
-			HelloSignature:    helloSig,
-			SignatureVerified: useWalletSig,
+			SignatureVerified: true,
 			Message:           asString(body["message"]),
 			Method:            asString(body["method"]),
 			Status:            "pending_in",
@@ -1336,31 +1301,6 @@ func parseTS(raw string) time.Time {
 		return time.Now().UTC()
 	}
 	return t
-}
-
-func verifyWalletChallenge(walletAddr, sigHex string) bool {
-	walletAddr = strings.TrimSpace(walletAddr)
-	sigHex = strings.TrimSpace(sigHex)
-	if !common.IsHexAddress(walletAddr) || sigHex == "" {
-		return false
-	}
-	sig, err := hexutil.Decode(sigHex)
-	if err != nil || len(sig) != 65 {
-		return false
-	}
-	if sig[64] >= 27 {
-		sig[64] -= 27
-	}
-	if sig[64] > 1 {
-		return false
-	}
-	hash := accounts.TextHash([]byte(walletChallenge))
-	pub, err := crypto.SigToPub(hash, sig)
-	if err != nil {
-		return false
-	}
-	recovered := crypto.PubkeyToAddress(*pub).Hex()
-	return strings.EqualFold(recovered, walletAddr)
 }
 
 type persistedState struct {

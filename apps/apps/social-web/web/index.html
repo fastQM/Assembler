@@ -632,13 +632,6 @@
         target_user_id: userID,
         message: 'hi'
       };
-      if (connectedWalletAddress) {
-        const signature = await signHello();
-        if (signature) {
-          payload.wallet_address = connectedWalletAddress;
-          payload.hello_sig = signature;
-        }
-      }
       const res = await postJSON('/api/social/v1/friends/request', payload);
       if (res.error) alert(res.error);
     }
@@ -668,21 +661,6 @@
         return addr;
       } catch (e) {
         alert(e && e.message ? e.message : 'Wallet connection failed');
-        return '';
-      }
-    }
-
-    async function signHello() {
-      let addr = connectedWalletAddress || ((latestState && latestState.me && latestState.me.username) ? String(latestState.me.username).toLowerCase() : '');
-      if (!addr) {
-        addr = await connectWallet();
-      }
-      if (!addr || !ensureWalletProvider()) return '';
-      const msgHex = '0x48656c6c6f'; // "Hello"
-      try {
-        return await window.ethereum.request({ method: 'personal_sign', params: [msgHex, addr] });
-      } catch (e) {
-        alert(e && e.message ? e.message : 'Signature rejected');
         return '';
       }
     }
@@ -963,13 +941,6 @@
         token: document.getElementById('inviteInput').value,
         message: document.getElementById('inviteMessage').value
       };
-      if (connectedWalletAddress) {
-        const signature = await signHello();
-        if (signature) {
-          payload.wallet_address = connectedWalletAddress;
-          payload.hello_sig = signature;
-        }
-      }
       const res = await postJSON('/api/social/v1/friends/request-by-invite', payload);
       if (res.error) alert(res.error);
     }

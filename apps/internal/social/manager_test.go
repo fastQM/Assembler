@@ -5,8 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"golang.org/x/crypto/curve25519"
 )
@@ -137,32 +135,6 @@ func TestIdentityHasValidCurve25519PublicKey(t *testing.T) {
 	}
 	if string(pub) != string(id.BoxPublicKey[:]) {
 		t.Fatalf("box public key does not match private key")
-	}
-}
-
-func TestVerifyWalletChallenge(t *testing.T) {
-	t.Parallel()
-
-	key, err := crypto.GenerateKey()
-	if err != nil {
-		t.Fatalf("generate key: %v", err)
-	}
-	addr := crypto.PubkeyToAddress(key.PublicKey).Hex()
-	hash := accounts.TextHash([]byte(walletChallenge))
-	sig, err := crypto.Sign(hash, key)
-	if err != nil {
-		t.Fatalf("sign: %v", err)
-	}
-	sigHex := hexutil.Encode(sig)
-
-	if !verifyWalletChallenge(addr, sigHex) {
-		t.Fatalf("expected signature verification to pass")
-	}
-
-	tampered := append([]byte(nil), sig...)
-	tampered[5] ^= 0x01
-	if verifyWalletChallenge(addr, hexutil.Encode(tampered)) {
-		t.Fatalf("expected tampered signature to fail")
 	}
 }
 
