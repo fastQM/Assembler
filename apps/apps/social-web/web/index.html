@@ -1,0 +1,1022 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Assembler Social</title>
+  <style>
+    :root {
+      --bg: #000000;
+      --bg-soft: #0a0a0a;
+      --panel: #000000;
+      --panel-soft: #111111;
+      --ink: #f5f5f5;
+      --muted: #8b98a5;
+      --line: #2f3336;
+      --brand: #1d9bf0;
+      --brand-soft: rgba(29, 155, 240, 0.2);
+      --danger: #f4212e;
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: "SF Pro Text", "Helvetica Neue", "Segoe UI", sans-serif;
+      background: radial-gradient(circle at 10% 0%, #14171a, var(--bg) 40%);
+    }
+    .hidden { display: none !important; }
+    .muted { color: var(--muted); }
+    .mono { font-family: Menlo, monospace; font-size: 12px; word-break: break-all; }
+    .row { display: flex; gap: 8px; align-items: center; }
+
+    .icon {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+      vertical-align: -3px;
+      margin-right: 8px;
+    }
+
+    input, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: #0f0f0f;
+      font: inherit;
+      color: var(--ink);
+    }
+    input:focus, textarea:focus {
+      outline: none;
+      border-color: var(--brand);
+      box-shadow: 0 0 0 2px var(--brand-soft);
+    }
+    textarea { resize: vertical; min-height: 86px; }
+    button {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 10px 14px;
+      font: inherit;
+      cursor: pointer;
+      background: #0f0f0f;
+      color: var(--ink);
+      white-space: nowrap;
+    }
+    button.primary {
+      background: var(--ink);
+      color: #000;
+      border-color: var(--ink);
+      font-weight: 600;
+    }
+    button.secondary {
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+    button.danger { border-color: var(--danger); color: var(--danger); }
+
+    .center-shell {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    .center-card {
+      width: min(760px, 100%);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 24px;
+    }
+    .center-head h1 { margin: 0; font-size: 30px; letter-spacing: -0.02em; }
+    .center-head p { margin: 8px 0 0; color: var(--muted); }
+    .grid-two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .actions { margin-top: 16px; display: flex; gap: 8px; }
+
+    .app-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 0;
+      max-width: 1380px;
+      margin: 0 auto;
+    }
+    .left {
+      border-right: 1px solid var(--line);
+      background: var(--panel);
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 100vh;
+    }
+    .left-head {
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+    }
+    .left-head .title { font-weight: 800; font-size: 22px; letter-spacing: -0.02em; }
+    .left-head .idline { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .left-body {
+      overflow: auto;
+      padding: 12px;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+    .card {
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .card-title {
+      margin: 0;
+      padding: 12px;
+      font-size: 12px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--line);
+      background: #0b0b0b;
+      font-weight: 700;
+    }
+    .list { display: grid; }
+    .friend-item, .req-item, .discover-item, .config-entry {
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      background: transparent;
+      text-align: left;
+      padding: 11px 12px;
+      width: 100%;
+      cursor: pointer;
+      color: var(--ink);
+    }
+    .friend-item:last-child, .req-item:last-child, .discover-item:last-child, .config-entry:last-child { border-bottom: 0; }
+    .friend-item.active, .config-entry.active { background: rgba(255, 255, 255, 0.05); }
+    .friend-item:hover, .discover-item:hover, .config-entry:hover { background: rgba(255, 255, 255, 0.04); }
+    .friend-item .name { font-weight: 600; font-size: 14px; }
+    .friend-item .sub, .discover-item .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    .main {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-height: 100vh;
+      background: linear-gradient(180deg, #050505, #000);
+    }
+    .main-head {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(0, 0, 0, 0.72);
+      backdrop-filter: blur(10px);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    .head-title { font-weight: 800; font-size: 20px; letter-spacing: -0.02em; }
+    .head-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    .chat-stream {
+      overflow: auto;
+      padding: 18px;
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+    .bubble {
+      max-width: min(72%, 720px);
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: #0f0f0f;
+      padding: 10px 12px;
+      line-height: 1.45;
+      font-size: 14px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .bubble.me {
+      margin-left: auto;
+      background: #15202b;
+      border-color: #203547;
+    }
+    .meta { margin-top: 4px; font-size: 11px; color: var(--muted); }
+
+    .composer {
+      border-top: 1px solid var(--line);
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(8px);
+      padding: 12px;
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 10px;
+      align-items: center;
+    }
+    .composer .attach { width: auto; }
+    .img-preview {
+      max-width: 200px;
+      max-height: 160px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      margin-top: 8px;
+    }
+    .config-wrap {
+      padding: 16px;
+      overflow: auto;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+    .config-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    @media (max-width: 980px) {
+      .grid-two, .config-grid { grid-template-columns: 1fr; }
+      .app-shell { grid-template-columns: 1fr; }
+      .left { min-height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+      .bubble { max-width: 92%; }
+      .main-head { flex-direction: column; align-items: stretch; }
+    }
+  </style>
+</head>
+<body>
+  <section id="homeView" class="center-shell">
+    <div class="center-card">
+      <div class="center-head">
+        <h1>Assembler Apps</h1>
+        <p>App entry. Choose an app to continue.</p>
+      </div>
+      <div class="card" style="margin-top:14px;">
+        <div class="card-title">Available App</div>
+        <div style="padding:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;">
+          <div>
+            <div style="font-weight:700;">Social</div>
+            <div class="muted" style="font-size:13px;margin-top:4px;">P2P direct chat with friend request and invite flows.</div>
+          </div>
+          <button class="primary" onclick="enterSocial()">Open</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="setupView" class="center-shell hidden">
+    <div class="center-card">
+      <div class="center-head">
+        <h1>Initialize Social Profile</h1>
+        <p>First-time setup only.</p>
+      </div>
+      <div class="grid-two">
+        <div>
+          <label>Username</label>
+          <input id="initUsername" placeholder="Your display name" />
+        </div>
+        <div>
+          <label>Passphrase</label>
+          <input id="initPassphrase" type="password" placeholder="Create unlock password" />
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        <label>Bio</label>
+        <textarea id="initBio" placeholder="A short intro"></textarea>
+      </div>
+      <div style="margin-top:10px;">
+        <label>Avatar (data URL, optional)</label>
+        <textarea id="initAvatar" placeholder="data:image/png;base64,..."></textarea>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <label><input type="checkbox" id="initDiscoverable" checked /> Discoverable</label>
+        <label><input type="checkbox" id="initAllowStranger" checked /> Allow stranger requests</label>
+        <label><input type="checkbox" id="initIsAdmin" /> Administrator</label>
+      </div>
+      <div class="actions">
+        <button class="primary" onclick="submitInit()">Initialize</button>
+        <button class="secondary" onclick="backHome()">Back</button>
+      </div>
+      <div id="setupMsg" class="muted" style="margin-top:10px;"></div>
+    </div>
+  </section>
+
+  <section id="unlockView" class="center-shell hidden">
+    <div class="center-card" style="max-width:560px;">
+      <div class="center-head">
+        <h1>Unlock Social</h1>
+        <p>Profile already exists. Enter passphrase to continue.</p>
+      </div>
+      <div style="margin-top:14px;">
+        <label>Passphrase</label>
+        <input id="unlockPassphrase" type="password" placeholder="Unlock local key" />
+      </div>
+      <div class="actions">
+        <button class="primary" onclick="submitUnlock()">Unlock</button>
+        <button class="secondary" onclick="backHome()">Back</button>
+      </div>
+      <div id="unlockMsg" class="muted" style="margin-top:10px;"></div>
+    </div>
+  </section>
+
+  <section id="mainView" class="app-shell hidden">
+    <aside class="left">
+      <div class="left-head">
+        <div class="title">Social</div>
+        <div id="meLine" class="idline">-</div>
+      </div>
+      <div class="left-body">
+        <section class="card">
+          <h3 class="card-title">Friends</h3>
+          <div id="friendList" class="list"></div>
+        </section>
+
+        <section class="card">
+          <h3 class="card-title">Discovery</h3>
+          <div id="discoverList" class="list"></div>
+        </section>
+
+        <section class="card">
+          <h3 class="card-title">Requests</h3>
+          <div id="requestList" class="list"></div>
+        </section>
+
+        <section class="card">
+          <h3 class="card-title">Config</h3>
+          <button id="configEntry" class="config-entry" onclick="switchMainTab('config')">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.03 7.03 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.23-1.12.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.7 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.82 14.52a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.31.6.22l2.39-.96c.51.4 1.05.71 1.63.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.58-.23 1.12-.54 1.63-.94l2.39.96c.22.09.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"/></svg>
+            Open Config
+          </button>
+        </section>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="main-head">
+        <div>
+          <div id="chatTitle" class="head-title">Select a friend</div>
+          <div id="chatSubtitle" class="head-sub">Pick a friend to open the conversation.</div>
+        </div>
+        <div class="head-sub">SSE realtime</div>
+      </header>
+
+      <section id="chatPanel" class="chat-stream">
+        <div class="muted">No conversation selected.</div>
+      </section>
+
+      <section id="configPanel" class="config-wrap hidden">
+        <div class="card">
+          <div class="card-title">Profile</div>
+          <div style="padding:12px;display:grid;gap:10px;">
+            <div class="config-grid">
+              <div>
+                <label>Username</label>
+                <input id="cfgUsername" placeholder="Display name" />
+              </div>
+              <div>
+                <label>User ID</label>
+                <input id="cfgUserID" disabled />
+              </div>
+            </div>
+            <div>
+              <label>Bio</label>
+              <textarea id="cfgBio"></textarea>
+            </div>
+            <div>
+              <label>Avatar (data URL)</label>
+              <textarea id="cfgAvatar"></textarea>
+            </div>
+            <div class="row">
+              <label><input type="checkbox" id="cfgDiscoverable" /> Can be discovered</label>
+              <label><input type="checkbox" id="cfgAllowStranger" /> Allow stranger requests</label>
+            </div>
+            <div class="row">
+              <button class="primary" onclick="saveConfig()">Save Config</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" id="adminPanel" style="display:none;">
+          <div class="card-title">Admin Contract Console</div>
+          <div style="padding:12px;display:grid;gap:8px;">
+            <div class="muted">Publish contract: deploy `contracts/AssemblerRegistry.sol` with your wallet tooling, then paste contract address below.</div>
+            <button class="secondary" onclick="publishContract()">Publish Contract (One-click)</button>
+            <input id="cfgContractAddress" placeholder="0xContractAddress" />
+            <button class="secondary" onclick="saveContractAddress()">Save Contract Address</button>
+            <div class="row">
+              <button class="primary" onclick="adminLoadContacts()">View Contacts (Wallets)</button>
+              <button class="secondary" onclick="adminLoadRequests()">View Contact Requests (Owner Review)</button>
+            </div>
+            <div>
+              <label>Request ID</label>
+              <input id="adminRequestID" placeholder="e.g. 1" />
+            </div>
+            <div class="row">
+              <button class="primary" onclick="adminApproveRequest()">Approve Request</button>
+              <button class="danger" onclick="adminRejectRequest()">Reject Request</button>
+            </div>
+            <div>
+              <label>Bootnode ID (bytes32 hex)</label>
+              <input id="adminBootnodeID" placeholder="0x..." />
+            </div>
+            <div>
+              <label>Bootnode Multiaddr</label>
+              <input id="adminBootnodeAddr" placeholder="/ip4/x.x.x.x/tcp/40001/p2p/..." />
+            </div>
+            <button class="primary" onclick="adminUpsertBootnode()">Upsert Bootnode</button>
+            <textarea id="adminContractOutput" class="mono" placeholder="Admin query result"></textarea>
+          </div>
+        </div>
+
+        <div class="card" id="userPanel" style="display:none;">
+          <div class="card-title">User Contract Access</div>
+          <div style="padding:12px;display:grid;gap:8px;">
+            <input id="userContractAddress" placeholder="Input contract address" />
+            <button class="secondary" onclick="saveContractAddress()">Save Contract Address</button>
+            <input id="userRequestNote" placeholder="Apply note (optional)" />
+            <button class="primary" onclick="submitContactApplication()">Apply Add Contact</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Invite Link</div>
+          <div style="padding:12px;display:grid;gap:8px;">
+            <button class="secondary" onclick="createInvite()">Create Invite</button>
+            <textarea id="inviteToken" class="mono" placeholder="Invite token"></textarea>
+            <textarea id="inviteInput" class="mono" placeholder="Paste invite token"></textarea>
+            <input id="inviteMessage" placeholder="Request message" />
+            <button class="primary" onclick="requestByInvite()">Add By Invite</button>
+          </div>
+        </div>
+      </section>
+
+      <footer id="composer" class="composer">
+        <input id="chatInput" placeholder="Type a message..." />
+        <input id="chatFile" class="attach" type="file" accept="image/*" />
+        <button class="primary" onclick="sendMessage()">Send</button>
+      </footer>
+    </main>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.5/dist/ethers.umd.min.js"></script>
+  <script>
+    let latestState = null;
+    let selectedFriend = '';
+    let es = null;
+    let pendingMedia = null;
+    let enteredSocial = false;
+    let mainTab = 'chat';
+    let connectedWalletAddress = '';
+    const REGISTRY_ABI = [
+      'function upsertBootnode(bytes32 id, string multiaddr)',
+      'function submitContactRequest(string note) returns (uint256)',
+      'function approveRequest(uint256 requestId)',
+      'function rejectRequest(uint256 requestId)',
+      'function listContacts(uint256 offset, uint256 limit) view returns (address[])',
+      'function listRequests(uint256 offset, uint256 limit) view returns (tuple(uint256 id,address applicant,string note,uint8 status,uint64 createdAt,uint64 reviewedAt,address reviewer)[])'
+    ];
+
+    function esc(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+    async function getJSON(url) {
+      const r = await fetch(url, {headers: {'Accept': 'application/json'}});
+      return await r.json();
+    }
+    async function postJSON(url, body) {
+      const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+      return await r.json();
+    }
+
+    function showStage(stage) {
+      document.getElementById('homeView').classList.toggle('hidden', stage !== 'home');
+      document.getElementById('setupView').classList.toggle('hidden', stage !== 'setup');
+      document.getElementById('unlockView').classList.toggle('hidden', stage !== 'unlock');
+      document.getElementById('mainView').classList.toggle('hidden', stage !== 'main');
+    }
+
+    function setSetupMessage(msg, isError) {
+      const el = document.getElementById('setupMsg');
+      el.textContent = msg || '';
+      el.style.color = isError ? '#f4212e' : '#8b98a5';
+    }
+
+    function setUnlockMessage(msg, isError) {
+      const el = document.getElementById('unlockMsg');
+      el.textContent = msg || '';
+      el.style.color = isError ? '#f4212e' : '#8b98a5';
+    }
+
+    function getSocialStage(state) {
+      const hasProfile = Boolean((state && state.has_profile) || (state && state.me));
+      const unlocked = Boolean(state && (state.unlocked || state.initialized));
+      if (!hasProfile) return 'setup';
+      if (!unlocked) return 'unlock';
+      return 'main';
+    }
+
+    function enterSocial() {
+      enteredSocial = true;
+      const stage = getSocialStage(latestState || {});
+      showStage(stage);
+      if (stage === 'main') renderMain();
+    }
+
+    function backHome() {
+      enteredSocial = false;
+      showStage('home');
+    }
+
+    function applyState(state) {
+      latestState = state || {};
+      if (!enteredSocial) {
+        showStage('home');
+        return;
+      }
+      const stage = getSocialStage(latestState);
+      showStage(stage);
+      if (stage !== 'main') return;
+      renderMain();
+    }
+
+    function renderMain() {
+      const me = latestState.me || {};
+      connectedWalletAddress = String(me.username || connectedWalletAddress || '').toLowerCase();
+      document.getElementById('meLine').textContent = `${me.username || 'unknown'} · ${me.user_id || '-'}`;
+      document.getElementById('cfgUsername').value = me.username || '';
+      document.getElementById('cfgUserID').value = me.user_id || '';
+      document.getElementById('cfgBio').value = me.bio || '';
+      document.getElementById('cfgAvatar').value = me.avatar_data || '';
+      document.getElementById('cfgDiscoverable').checked = Boolean(me.settings && me.settings.discoverable);
+      document.getElementById('cfgAllowStranger').checked = Boolean(me.settings && me.settings.allow_stranger_requests);
+      const contractAddr = (me.settings && me.settings.contract_address) ? me.settings.contract_address : '';
+      document.getElementById('cfgContractAddress').value = contractAddr;
+      document.getElementById('userContractAddress').value = contractAddr;
+      const isAdmin = Boolean(me.settings && me.settings.is_admin);
+      document.getElementById('adminPanel').style.display = isAdmin ? '' : 'none';
+      document.getElementById('userPanel').style.display = isAdmin ? 'none' : '';
+
+      renderFriends();
+      renderDiscovery();
+      renderRequests();
+      renderMainPanel();
+    }
+
+    function switchMainTab(tab) {
+      mainTab = tab;
+      document.getElementById('configEntry').classList.toggle('active', tab === 'config');
+      renderMainPanel();
+    }
+
+    function renderMainPanel() {
+      const chatPanel = document.getElementById('chatPanel');
+      const configPanel = document.getElementById('configPanel');
+      const composer = document.getElementById('composer');
+
+      if (mainTab === 'config') {
+        document.getElementById('chatTitle').textContent = 'Config';
+        document.getElementById('chatSubtitle').textContent = 'Manage profile and contract settings.';
+        chatPanel.classList.add('hidden');
+        composer.classList.add('hidden');
+        configPanel.classList.remove('hidden');
+        return;
+      }
+
+      document.getElementById('configEntry').classList.remove('active');
+      configPanel.classList.add('hidden');
+      chatPanel.classList.remove('hidden');
+      composer.classList.remove('hidden');
+      renderChat();
+    }
+
+    function renderFriends() {
+      const friends = latestState.friends || [];
+      const discovery = latestState.discovery || [];
+      const byID = {};
+      discovery.forEach(u => byID[u.user_id] = u);
+
+      if (!selectedFriend && friends.length) selectedFriend = friends[0].user_id;
+      if (selectedFriend && !friends.find(f => f.user_id === selectedFriend)) selectedFriend = friends[0] ? friends[0].user_id : '';
+
+      const html = friends.map(f => {
+        const u = byID[f.user_id] || {};
+        const name = u.username || f.alias || f.user_id;
+        const active = f.user_id === selectedFriend ? 'active' : '';
+        return `<button class="friend-item ${active}" onclick="selectFriend('${f.user_id}')"><div class="name">${esc(name)}</div><div class="sub">${esc(f.user_id)}</div></button>`;
+      }).join('') || '<div class="muted" style="padding:12px;">No friends yet.</div>';
+      document.getElementById('friendList').innerHTML = html;
+    }
+
+    function renderDiscovery() {
+      const me = latestState.me || {};
+      const friends = latestState.friends || [];
+      const friendSet = new Set(friends.map(f => f.user_id));
+      const all = latestState.discovery || [];
+      const list = all.filter(u => u.user_id && u.user_id !== me.user_id && !friendSet.has(u.user_id));
+
+      const html = list.map(u => {
+        const name = u.username || u.user_id;
+        return `<div class="discover-item"><div style="font-weight:600;">${esc(name)}</div><div class="sub">${esc(u.user_id)}</div><div class="row" style="margin-top:8px;"><button class="secondary" onclick="requestUser('${u.user_id}')">Add Friend</button></div></div>`;
+      }).join('') || '<div class="muted" style="padding:12px;">No discovered users yet.</div>';
+      document.getElementById('discoverList').innerHTML = html;
+    }
+
+    async function requestUser(userID) {
+      const payload = {
+        target_user_id: userID,
+        message: 'hi'
+      };
+      if (connectedWalletAddress) {
+        const signature = await signHello();
+        if (signature) {
+          payload.wallet_address = connectedWalletAddress;
+          payload.hello_sig = signature;
+        }
+      }
+      const res = await postJSON('/api/social/v1/friends/request', payload);
+      if (res.error) alert(res.error);
+    }
+
+    function ensureWalletProvider() {
+      if (!window.ethereum || typeof window.ethereum.request !== 'function') {
+        alert('No EVM wallet found. Please install MetaMask or Rabby.');
+        return false;
+      }
+      return true;
+    }
+
+    async function connectWallet() {
+      if (!ensureWalletProvider()) return '';
+      try {
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        const addr = (accounts && accounts[0]) ? String(accounts[0]).toLowerCase() : '';
+        if (!addr) {
+          alert('Wallet account not available.');
+          return '';
+        }
+        connectedWalletAddress = addr;
+        const initInput = document.getElementById('initUsername');
+        if (initInput) initInput.value = addr;
+        const cfgInput = document.getElementById('cfgUsername');
+        if (cfgInput) cfgInput.value = addr;
+        return addr;
+      } catch (e) {
+        alert(e && e.message ? e.message : 'Wallet connection failed');
+        return '';
+      }
+    }
+
+    async function signHello() {
+      let addr = connectedWalletAddress || ((latestState && latestState.me && latestState.me.username) ? String(latestState.me.username).toLowerCase() : '');
+      if (!addr) {
+        addr = await connectWallet();
+      }
+      if (!addr || !ensureWalletProvider()) return '';
+      const msgHex = '0x48656c6c6f'; // "Hello"
+      try {
+        return await window.ethereum.request({ method: 'personal_sign', params: [msgHex, addr] });
+      } catch (e) {
+        alert(e && e.message ? e.message : 'Signature rejected');
+        return '';
+      }
+    }
+
+    function activeContractAddress() {
+      const me = (latestState && latestState.me) ? latestState.me : {};
+      const fromState = me.settings && me.settings.contract_address ? String(me.settings.contract_address).trim() : '';
+      const fromCfg = (document.getElementById('cfgContractAddress') ? document.getElementById('cfgContractAddress').value : '') || '';
+      const fromUser = (document.getElementById('userContractAddress') ? document.getElementById('userContractAddress').value : '') || '';
+      return (fromState || fromCfg || fromUser || '').trim();
+    }
+
+    async function getRegistryContract(write) {
+      const addr = activeContractAddress();
+      if (!addr) {
+        alert('Please input and save contract address first.');
+        return null;
+      }
+      if (!window.ethers || !window.ethereum) {
+        alert('Wallet provider or ethers runtime is missing.');
+        return null;
+      }
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = write ? await provider.getSigner() : null;
+      return new ethers.Contract(addr, REGISTRY_ABI, write ? signer : provider);
+    }
+
+    async function adminUpsertBootnode() {
+      const c = await getRegistryContract(true);
+      if (!c) return;
+      try {
+        const id = (document.getElementById('adminBootnodeID').value || '').trim();
+        const addr = (document.getElementById('adminBootnodeAddr').value || '').trim();
+        const tx = await c.upsertBootnode(id, addr);
+        document.getElementById('adminContractOutput').value = `Submitted tx: ${tx.hash}`;
+      } catch (e) {
+        alert(e && e.message ? e.message : 'upsert bootnode failed');
+      }
+    }
+
+    async function publishContract() {
+      if (!window.ethers || !window.ethereum) {
+        alert('Wallet provider or ethers runtime is missing.');
+        return;
+      }
+      try {
+        const artifactRes = await fetch('/apps/social-web/web/contracts/AssemblerRegistry.json', { headers: { 'Accept': 'application/json' } });
+        if (!artifactRes.ok) {
+          alert('Contract artifact not found. Please ensure AssemblerRegistry.json is available.');
+          return;
+        }
+        const artifact = await artifactRes.json();
+        if (!artifact || !artifact.abi || !artifact.bytecode) {
+          alert('Invalid contract artifact.');
+          return;
+        }
+
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        const factory = new ethers.ContractFactory(artifact.abi, artifact.bytecode, signer);
+        const contract = await factory.deploy();
+        const tx = contract.deploymentTransaction();
+        document.getElementById('adminContractOutput').value = `Deploy submitted: ${tx ? tx.hash : ''}`;
+        await contract.waitForDeployment();
+        const deployed = await contract.getAddress();
+        document.getElementById('cfgContractAddress').value = deployed;
+        document.getElementById('userContractAddress').value = deployed;
+        await saveContractAddress();
+        document.getElementById('adminContractOutput').value = `Deploy success: ${deployed}`;
+      } catch (e) {
+        alert(e && e.message ? e.message : 'publish contract failed');
+      }
+    }
+
+    async function adminLoadContacts() {
+      const c = await getRegistryContract(false);
+      if (!c) return;
+      try {
+        const rows = await c.listContacts(0, 200);
+        document.getElementById('adminContractOutput').value = rows.map(v => String(v)).join('\n') || '(empty)';
+      } catch (e) {
+        alert(e && e.message ? e.message : 'load contacts failed');
+      }
+    }
+
+    async function adminLoadRequests() {
+      const c = await getRegistryContract(false);
+      if (!c) return;
+      try {
+        const rows = await c.listRequests(0, 200);
+        const out = rows.map(r => `id=${r.id} applicant=${r.applicant} status=${r.status} note=${r.note || ''}`);
+        document.getElementById('adminContractOutput').value = out.join('\n') || '(empty)';
+      } catch (e) {
+        alert(e && e.message ? e.message : 'load requests failed');
+      }
+    }
+
+    function adminRequestIDValue() {
+      const raw = (document.getElementById('adminRequestID').value || '').trim();
+      if (!raw) {
+        alert('Request ID is required.');
+        return null;
+      }
+      try {
+        return BigInt(raw);
+      } catch (_) {
+        alert('Invalid Request ID.');
+        return null;
+      }
+    }
+
+    async function adminApproveRequest() {
+      const c = await getRegistryContract(true);
+      if (!c) return;
+      const requestID = adminRequestIDValue();
+      if (requestID === null) return;
+      try {
+        const tx = await c.approveRequest(requestID);
+        document.getElementById('adminContractOutput').value = `Approve submitted: ${tx.hash}`;
+      } catch (e) {
+        alert(e && e.message ? e.message : 'approve request failed');
+      }
+    }
+
+    async function adminRejectRequest() {
+      const c = await getRegistryContract(true);
+      if (!c) return;
+      const requestID = adminRequestIDValue();
+      if (requestID === null) return;
+      try {
+        const tx = await c.rejectRequest(requestID);
+        document.getElementById('adminContractOutput').value = `Reject submitted: ${tx.hash}`;
+      } catch (e) {
+        alert(e && e.message ? e.message : 'reject request failed');
+      }
+    }
+
+    async function submitContactApplication() {
+      const c = await getRegistryContract(true);
+      if (!c) return;
+      try {
+        const note = (document.getElementById('userRequestNote').value || '').trim();
+        const tx = await c.submitContactRequest(note);
+        alert(`Application submitted: ${tx.hash}`);
+      } catch (e) {
+        alert(e && e.message ? e.message : 'apply contact failed');
+      }
+    }
+
+    function renderRequests() {
+      const reqs = (latestState.requests || []).filter(r => r.status === 'pending_in');
+      const html = reqs.map(r => `<div class="req-item"><div style="font-weight:600;">${esc(r.from_name || r.from_user_id)}</div><div class="muted" style="font-size:12px;margin-top:2px;">${esc(r.message || '')}</div><div class="row" style="margin-top:8px;"><button class="primary" onclick="respondRequest('${r.request_id}', true)">Accept</button><button class="danger" onclick="respondRequest('${r.request_id}', false)">Reject</button></div></div>`).join('') || '<div class="muted" style="padding:12px;">No pending requests.</div>';
+      document.getElementById('requestList').innerHTML = html;
+    }
+
+    function renderChat() {
+      const me = latestState.me || {};
+      const discovery = latestState.discovery || [];
+      const byID = {};
+      discovery.forEach(u => byID[u.user_id] = u);
+      const conversations = latestState.conversations || {};
+      const list = conversations[selectedFriend] || [];
+
+      if (!selectedFriend) {
+        document.getElementById('chatTitle').textContent = 'Select a friend';
+        document.getElementById('chatSubtitle').textContent = 'Pick a friend to open the conversation.';
+        document.getElementById('chatPanel').innerHTML = '<div class="muted">No conversation selected.</div>';
+        return;
+      }
+
+      const peer = byID[selectedFriend] || {};
+      document.getElementById('chatTitle').textContent = peer.username || selectedFriend;
+      document.getElementById('chatSubtitle').textContent = selectedFriend;
+
+      const html = list.map(m => {
+        const mine = m.from_user_id === me.user_id;
+        const cls = mine ? 'bubble me' : 'bubble';
+        const who = mine ? 'You' : (peer.username || m.from_user_id);
+        const text = m.body ? `<div>${esc(m.body)}</div>` : '';
+        const image = m.media_data && String(m.media_mime || '').startsWith('image/') ? `<img class="img-preview" src="${esc(m.media_data)}" alt="${esc(m.media_name || 'image')}" />` : '';
+        return `<div class="${cls}">${text}${image}<div class="meta">${esc(who)} · ${esc(m.created_at || '')}</div></div>`;
+      }).join('') || '<div class="muted">No messages yet.</div>';
+      const stream = document.getElementById('chatPanel');
+      stream.innerHTML = html;
+      stream.scrollTop = stream.scrollHeight;
+    }
+
+    function selectFriend(userID) {
+      selectedFriend = userID;
+      switchMainTab('chat');
+      renderFriends();
+    }
+
+    function connectSSE() {
+      if (es) es.close();
+      es = new EventSource('/api/social/v1/stream');
+      es.addEventListener('ready', (ev) => {
+        try { applyState(JSON.parse(ev.data || '{}')); } catch (_) {}
+      });
+      es.addEventListener('state', (ev) => {
+        try { applyState(JSON.parse(ev.data || '{}')); } catch (_) {}
+      });
+      es.onerror = () => {
+        if (es) es.close();
+        setTimeout(connectSSE, 1500);
+      };
+    }
+
+    async function loadInitialState() {
+      try {
+        const state = await getJSON('/api/social/v1/state');
+        applyState(state);
+      } catch (_) {
+        showStage('home');
+      }
+    }
+
+    async function submitInit() {
+      setSetupMessage('Initializing...', false);
+      const res = await postJSON('/api/social/v1/init', {
+        username: document.getElementById('initUsername').value,
+        bio: document.getElementById('initBio').value,
+        avatar_data: document.getElementById('initAvatar').value,
+        passphrase: document.getElementById('initPassphrase').value,
+        settings: {
+          discoverable: document.getElementById('initDiscoverable').checked,
+          allow_stranger_requests: document.getElementById('initAllowStranger').checked,
+          is_admin: document.getElementById('initIsAdmin').checked
+        }
+      });
+      if (res.error) {
+        setSetupMessage(res.error, true);
+        return;
+      }
+      setSetupMessage('Initialized.', false);
+      await loadInitialState();
+    }
+
+    async function submitUnlock() {
+      setUnlockMessage('Unlocking...', false);
+      const res = await postJSON('/api/social/v1/unlock', {passphrase: document.getElementById('unlockPassphrase').value});
+      if (res.error) {
+        setUnlockMessage(res.error, true);
+        return;
+      }
+      setUnlockMessage('Unlocked.', false);
+      await loadInitialState();
+    }
+
+    async function saveConfig() {
+      const res = await postJSON('/api/social/v1/profile', {
+        username: document.getElementById('cfgUsername').value,
+        bio: document.getElementById('cfgBio').value,
+        avatar_data: document.getElementById('cfgAvatar').value,
+        settings: {
+          discoverable: document.getElementById('cfgDiscoverable').checked,
+          allow_stranger_requests: document.getElementById('cfgAllowStranger').checked,
+          is_admin: Boolean(latestState && latestState.me && latestState.me.settings && latestState.me.settings.is_admin),
+          contract_address: (document.getElementById('cfgContractAddress').value || document.getElementById('userContractAddress').value || '').trim()
+        }
+      });
+      if (res.error) alert(res.error);
+    }
+
+    async function saveContractAddress() {
+      await saveConfig();
+      await loadInitialState();
+    }
+
+    async function createInvite() {
+      const res = await postJSON('/api/social/v1/friends/invite', {});
+      if (res.error) return alert(res.error);
+      document.getElementById('inviteToken').value = res.token || '';
+    }
+
+    async function requestByInvite() {
+      const payload = {
+        token: document.getElementById('inviteInput').value,
+        message: document.getElementById('inviteMessage').value
+      };
+      if (connectedWalletAddress) {
+        const signature = await signHello();
+        if (signature) {
+          payload.wallet_address = connectedWalletAddress;
+          payload.hello_sig = signature;
+        }
+      }
+      const res = await postJSON('/api/social/v1/friends/request-by-invite', payload);
+      if (res.error) alert(res.error);
+    }
+
+    async function respondRequest(requestID, accept) {
+      const res = await postJSON('/api/social/v1/friends/respond', {request_id: requestID, accept});
+      if (res.error) alert(res.error);
+    }
+
+    async function sendMessage() {
+      if (!selectedFriend) return;
+      const input = document.getElementById('chatInput');
+      const body = input.value.trim();
+      if (!body && !pendingMedia) return;
+      const res = await postJSON('/api/social/v1/messages/send', {
+        to_user_id: selectedFriend,
+        body,
+        media_name: pendingMedia ? pendingMedia.name : '',
+        media_mime: pendingMedia ? pendingMedia.mime : '',
+        media_data: pendingMedia ? pendingMedia.data : ''
+      });
+      if (res.error) return alert(res.error);
+      input.value = '';
+      pendingMedia = null;
+      document.getElementById('chatFile').value = '';
+    }
+
+    document.getElementById('chatFile').addEventListener('change', (ev) => {
+      const file = ev.target.files && ev.target.files[0];
+      if (!file) {
+        pendingMedia = null;
+        return;
+      }
+      if (!file.type.startsWith('image/')) {
+        alert('Only image files are supported currently.');
+        ev.target.value = '';
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        pendingMedia = {name: file.name || 'image', mime: file.type || 'image/*', data: String(reader.result || '')};
+      };
+      reader.readAsDataURL(file);
+    });
+
+    loadInitialState();
+    connectSSE();
+  </script>
+</body>
+</html>

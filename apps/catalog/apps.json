@@ -1,0 +1,13 @@
+[
+  {
+    "app_id": "social-web",
+    "name": "Assembler Social",
+    "kind": "social",
+    "runtime": "web-static",
+    "version": "0.1.0",
+    "entry": "/apps/social-web/web/index.html",
+    "spec": "/apps/social-web/spec.json",
+    "tags": ["social", "p2p", "chat"],
+    "source": "local"
+  }
+]

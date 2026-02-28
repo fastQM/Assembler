@@ -1,0 +1,338 @@
+package socialapi
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
+
+	"Assembler-Apps/internal/social"
+)
+
+type Server struct {
+	m *social.Manager
+}
+
+func NewServer(m *social.Manager) *Server {
+	return &Server{m: m}
+}
+
+func (s *Server) Register(mux *http.ServeMux) {
+	s.RegisterWithBase(mux, "/api/social/v1")
+}
+
+func (s *Server) RegisterWithBase(mux *http.ServeMux, base string) {
+	base = strings.TrimRight(strings.TrimSpace(base), "/")
+	if base == "" {
+		base = "/api/social/v1"
+	}
+	mux.HandleFunc(base+"/state", s.handleState)
+	mux.HandleFunc(base+"/stream", s.handleStream)
+	mux.HandleFunc(base+"/init", s.handleInit)
+	mux.HandleFunc(base+"/unlock", s.handleUnlock)
+	mux.HandleFunc(base+"/wallet-login", s.handleWalletLogin)
+	mux.HandleFunc(base+"/profile", s.handleProfile)
+	mux.HandleFunc(base+"/friends/request", s.handleRequest)
+	mux.HandleFunc(base+"/friends/respond", s.handleRespond)
+	mux.HandleFunc(base+"/friends/invite", s.handleInvite)
+	mux.HandleFunc(base+"/friends/request-by-invite", s.handleRequestByInvite)
+	mux.HandleFunc(base+"/messages/send", s.handleSendMessage)
+	mux.HandleFunc(base+"/messages/", func(w http.ResponseWriter, r *http.Request) {
+		s.handleConversationWithBase(base, w, r)
+	})
+}
+
+func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "streaming not supported")
+		return
+	}
+	ch, cancel := s.m.SubscribeEvents()
+	defer cancel()
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(http.StatusOK)
+	writeSSEJSON(w, "ready", s.m.Snapshot())
+	flusher.Flush()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case event, ok := <-ch:
+			if !ok {
+				return
+			}
+			if err := writeSSEJSON(w, event, s.m.Snapshot()); err != nil {
+				return
+			}
+			flusher.Flush()
+		}
+	}
+}
+
+func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	writeJSON(w, http.StatusOK, s.m.Snapshot())
+}
+
+func (s *Server) handleInit(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		writeNoContent(w)
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var req struct {
+		Username   string          `json:"username"`
+		Bio        string          `json:"bio"`
+		AvatarData string          `json:"avatar_data"`
+		Passphrase string          `json:"passphrase"`
+		Settings   social.Settings `json:"settings"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	p, err := s.m.Init(req.Username, req.Bio, req.AvatarData, req.Passphrase, req.Settings)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"me": p})
+}
+
+func (s *Server) handleUnlock(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		writeNoContent(w)
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var req struct {
+		Passphrase string `json:"passphrase"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	if err := s.m.Unlock(req.Passphrase); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (s *Server) handleWalletLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		writeNoContent(w)
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var req struct {
+		WalletAddr string          `json:"wallet_address"`
+		Settings   social.Settings `json:"settings"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	p, err := s.m.LoginWithWallet(req.WalletAddr, req.Settings)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"me": p})
+}
+
+func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		writeNoContent(w)
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var req struct {
+		Username   string          `json:"username"`
+		Bio        string          `json:"bio"`
+		AvatarData string          `json:"avatar_data"`
+		Settings   social.Settings `json:"settings"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	p, err := s.m.UpdateProfile(req.Username, req.Bio, req.AvatarData, req.Settings)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"me": p})
+}
+
+func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var req struct {
+		TargetUserID string `json:"target_user_id"`
+		Message      string `json:"message"`
+		WalletAddr   string `json:"wallet_address"`
+		HelloSig     string `json:"hello_sig"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	if err := s.m.SendFriendRequest(req.TargetUserID, req.Message, "discover", req.WalletAddr, req.HelloSig); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (s *Server) handleRespond(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var req struct {
+		RequestID string `json:"request_id"`
+		Accept    bool   `json:"accept"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	if err := s.m.RespondFriendRequest(req.RequestID, req.Accept); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (s *Server) handleInvite(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	token, err := s.m.CreateInviteLink()
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"token": token})
+}
+
+func (s *Server) handleRequestByInvite(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var req struct {
+		Token      string `json:"token"`
+		Message    string `json:"message"`
+		WalletAddr string `json:"wallet_address"`
+		HelloSig   string `json:"hello_sig"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	if err := s.m.SendFriendRequestByInvite(req.Token, req.Message, req.WalletAddr, req.HelloSig); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (s *Server) handleSendMessage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var req struct {
+		ToUserID  string `json:"to_user_id"`
+		Body      string `json:"body"`
+		MediaName string `json:"media_name"`
+		MediaMIME string `json:"media_mime"`
+		MediaData string `json:"media_data"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	if err := s.m.SendDirectMessage(req.ToUserID, req.Body, req.MediaName, req.MediaMIME, req.MediaData); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (s *Server) handleConversation(w http.ResponseWriter, r *http.Request) {
+	s.handleConversationWithBase("/api/social/v1", w, r)
+}
+
+func (s *Server) handleConversationWithBase(base string, w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	prefix := strings.TrimRight(base, "/") + "/messages/"
+	userID := strings.Trim(strings.TrimPrefix(r.URL.Path, prefix), "/")
+	if userID == "" {
+		writeError(w, http.StatusBadRequest, "user id required")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"messages": s.m.Conversation(userID)})
+}
+
+func writeJSON(w http.ResponseWriter, status int, payload any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	w.Header().Set("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func writeError(w http.ResponseWriter, status int, msg string) {
+	writeJSON(w, status, map[string]any{"error": msg})
+}
+
+func writeNoContent(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	w.Header().Set("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func writeSSEJSON(w http.ResponseWriter, event string, payload any) error {
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write([]byte(fmt.Sprintf("event: %s\ndata: %s\n\n", event, string(b))))
+	return err
+}

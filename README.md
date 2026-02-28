@@ -9,7 +9,7 @@ This repository only keeps platform capabilities:
 - Market Layer: publish/discover/subscribe app listings
 - Network Layer: memory/libp2p pubsub transport
 
-Game logic and app UIs are hosted in `Assembler-Apps`.
+Game logic and app UIs are now hosted under `apps/` in this repository.
 
 ## Run (Daemon Mode Only)
 
@@ -41,6 +41,21 @@ Discovery is configurable:
 
 Assembler now runs in RPC-only mode in this repository.
 The legacy HTTP gateway and web console have been removed.
+
+## Apps Runtime (`apps/`)
+
+Application gateway/runtime code is under `apps/` and runs as a same-process plugin host.
+Current modules are mounted with namespaced API routes (for example `social`):
+
+- plugin route: `/api/apps/social/v1/*`
+- compatibility route: `/api/social/v1/*`
+
+Run apps gateway:
+
+```bash
+cd Assembler/apps
+go run ./cmd/apps-web -addr :8090 -social-rpc-sock ../data/assembler-p2p.sock
+```
 
 ## Local RPC for app p2p access
 

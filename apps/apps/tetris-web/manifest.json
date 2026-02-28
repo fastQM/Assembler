@@ -1,0 +1,23 @@
+{
+  "app_id": "tetris-web",
+  "name": "Assembler Tetris",
+  "kind": "game",
+  "runtime": "web-static",
+  "version": "0.2.0",
+  "entry": "/apps/tetris-web/web/tetris.html",
+  "spec": "/apps/tetris-web/spec.json",
+  "api": {
+    "base": "http://127.0.0.1:8080",
+    "routes": [
+      "/api/tetris/register",
+      "/api/tetris/ready",
+      "/api/tetris/room/{room_id}/stream",
+      "/api/tetris/room/{room_id}/control",
+      "/api/tetris/room/{room_id}/input"
+    ]
+  },
+  "permissions": {
+    "network": ["http://127.0.0.1:8080"],
+    "agent_takeover": true
+  }
+}
