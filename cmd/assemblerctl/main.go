@@ -156,7 +156,6 @@ func runStart(args []string) int {
 	daemon := fs.Bool("daemon", true, "run in daemon mode")
 	wait := fs.Duration("wait", 8*time.Second, "startup health timeout")
 	daemonBin := fs.String("daemon-bin", "", "optional assembler daemon binary path")
-	serverBinCompat := fs.String("server-bin", "", "deprecated alias of --daemon-bin")
 	pidOverride := fs.String("pid-file", "", "pid file path override")
 	logOverride := fs.String("log-file", "", "log file path override")
 	if err := fs.Parse(args); err != nil {
@@ -207,15 +206,19 @@ func runStart(args []string) int {
 	var cmd *exec.Cmd
 	daemonPath := strings.TrimSpace(*daemonBin)
 	if daemonPath == "" {
-		daemonPath = strings.TrimSpace(*serverBinCompat)
+		daemonPath = "assemblerd"
 	}
-	if daemonPath != "" {
-		cmd = exec.Command(daemonPath, serverArgs...)
-	} else {
-		cmd = exec.Command("go", append([]string{"run", "./cmd/assemblerd"}, serverArgs...)...)
-		// Force module mode so global GO111MODULE=off does not break daemon startup.
-		cmd.Env = append(os.Environ(), "GO111MODULE=on")
+	if !filepath.IsAbs(daemonPath) {
+		daemonPath = filepath.Join(*workdir, daemonPath)
+		if abs, err := filepath.Abs(daemonPath); err == nil {
+			daemonPath = abs
+		}
 	}
+	if _, err := os.Stat(daemonPath); err != nil {
+		fmt.Printf("daemon binary not found: %s (build with `go build -o assemblerd ./cmd/assemblerd`)\n", daemonPath)
+		return exitSpawnFailure
+	}
+	cmd = exec.Command(daemonPath, serverArgs...)
 	cmd.Dir = *workdir
 	if !*daemon {
 		cmd.Stdout = os.Stdout
