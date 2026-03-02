@@ -267,6 +267,13 @@
           </div>
           <button class="primary" onclick="enterSocial()">Open</button>
         </div>
+        <div style="padding:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid var(--line);">
+          <div>
+            <div style="font-weight:700;">Tetris</div>
+            <div class="muted" style="font-size:13px;margin-top:4px;">Single-player classic tetris.</div>
+          </div>
+          <button class="secondary" onclick="enterTetris()">Open</button>
+        </div>
       </div>
     </div>
   </section>
@@ -526,6 +533,10 @@
       const stage = getSocialStage(latestState || {});
       showStage(stage);
       if (stage === 'main') renderMain();
+    }
+
+    function enterTetris() {
+      window.location.href = '/apps/tetris-web/web/tetris.html';
     }
 
     function backHome() {
